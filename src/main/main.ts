@@ -73,6 +73,35 @@ function createWindow(): void {
   });
 }
 
+// ===== Settings Window =====
+
+let settingsWindow: BrowserWindow | null = null;
+
+function openSettingsWindow(): void {
+  if (settingsWindow) {
+    settingsWindow.focus();
+    return;
+  }
+
+  settingsWindow = new BrowserWindow({
+    width: 480,
+    height: 600,
+    resizable: false,
+    title: 'Settings',
+    webPreferences: {
+      preload: path.join(__dirname, '..', 'preload', 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  settingsWindow.loadFile(path.join(__dirname, '..', '..', 'src', 'renderer', 'settings.html'));
+
+  settingsWindow.on('closed', () => {
+    settingsWindow = null;
+  });
+}
+
 // ===== System Tray =====
 
 function createTray(): void {
@@ -104,6 +133,12 @@ function createTray(): void {
       label: 'Mini Mode',
       click: () => {
         mainWindow?.webContents.send('hotkey:toggleMini');
+      },
+    },
+    {
+      label: 'Settings',
+      click: () => {
+        openSettingsWindow();
       },
     },
     { type: 'separator' },
