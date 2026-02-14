@@ -733,6 +733,59 @@ if (closeHistoryBtn) {
   });
 }
 
+// ===== Keyboard Shortcuts =====
+document.addEventListener('keydown', (e) => {
+  // Escape: cancel current action / close panels
+  if (e.key === 'Escape') {
+    if (historyPanel && historyPanel.style.display !== 'none') {
+      historyPanel.style.display = 'none';
+      return;
+    }
+    if (appState === 'listening' || appState === 'followup') {
+      clearTimeout(executeTimer);
+      accumulatedTranscript = '';
+      stopRecording().then(() => setAppState('idle'));
+      return;
+    }
+    if (appState === 'thinking') {
+      isProcessing = false;
+      interruptTTS();
+      setAppState('idle');
+      showBubble(window.I18N ? window.I18N.t('cancelled') : 'Cancelled');
+      return;
+    }
+    if (appState === 'speaking') {
+      interruptTTS();
+      isProcessing = false;
+      setAppState('idle');
+      return;
+    }
+  }
+
+  // Space: toggle recording (when not typing in input)
+  if (e.key === ' ' && document.activeElement !== textInput) {
+    e.preventDefault();
+    onCharacterClick();
+    return;
+  }
+
+  // Ctrl+H / Cmd+H: toggle history
+  if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
+    e.preventDefault();
+    if (historyPanel) {
+      const isVisible = historyPanel.style.display !== 'none';
+      historyPanel.style.display = isVisible ? 'none' : 'flex';
+      if (!isVisible) renderHistory();
+    }
+  }
+
+  // / : focus text input
+  if (e.key === '/' && document.activeElement !== textInput) {
+    e.preventDefault();
+    textInput.focus();
+  }
+});
+
 // ===== Context Menu =====
 characterArea.addEventListener('contextmenu', (e) => {
   e.preventDefault();
