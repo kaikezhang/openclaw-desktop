@@ -104,9 +104,23 @@ class CharacterAnimator {
     this.currentState = state;
 
     if (this.mode === 'pixel') {
-      // Pixel mode: switch GIF, add cache buster to restart animation
+      // Pixel mode: use GIF + CSS for bounce/thinking (AI GIFs inconsistent)
       const gifSrc = this.pixelAnims[state] || this.pixelAnims.idle;
-      this.imgElement.src = gifSrc + '?t=' + Date.now();
+
+      // Remove previous CSS animation classes
+      this.imgElement.classList.remove('pixel-bounce', 'pixel-pulse');
+
+      if (state === 'thinking') {
+        // Use idle GIF + CSS bounce instead of broken bounce GIF
+        this.imgElement.src = this.pixelAnims.idle;
+        this.imgElement.classList.add('pixel-bounce');
+      } else if (state === 'listening') {
+        // Pulse effect for listening
+        this.imgElement.src = this.pixelAnims.idle;
+        this.imgElement.classList.add('pixel-pulse');
+      } else {
+        this.imgElement.src = gifSrc + '?t=' + Date.now();
+      }
       return;
     }
 

@@ -265,6 +265,22 @@ body {
   z-index: 2;
 }
 
+/* ===== Pixel Sprite Animations ===== */
+.pixel-bounce {
+  animation: pixelBounce 0.6s ease-in-out infinite;
+}
+.pixel-pulse {
+  animation: pixelPulse 1.2s ease-in-out infinite;
+}
+@keyframes pixelBounce {
+  0%, 100% { transform: translateX(-50%) translateY(0); }
+  50% { transform: translateX(-50%) translateY(-20px); }
+}
+@keyframes pixelPulse {
+  0%, 100% { transform: translateX(-50%) scale(1); }
+  50% { transform: translateX(-50%) scale(1.05); }
+}
+
 /* ===== Tap Hint ===== */
 .tap-hint {
   position: absolute;
