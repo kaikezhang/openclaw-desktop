@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Compiled output
+dist/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build / Release
+release/
+build/
+out/
+*.asar
+
+# Media assets (user-provided)
+*.mp4
+assets/models/*.moc3
+assets/models/*.model3.json
+assets/models/**/*.png
+assets/models/**/*.json
+!assets/models/.gitkeep
