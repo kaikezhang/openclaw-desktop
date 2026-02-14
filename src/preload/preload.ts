@@ -83,6 +83,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     setLoginItem: (enabled: boolean) => ipcRenderer.invoke('settings:setLoginItem', enabled),
   },
 
+  // ===== Notifications =====
+  notify: (title: string, body: string) => ipcRenderer.invoke('notify', { title, body }),
+
   // ===== Global Hotkeys =====
   onToggleRecord: (cb: () => void) =>
     ipcRenderer.on('hotkey:toggleRecord', () => cb()),
