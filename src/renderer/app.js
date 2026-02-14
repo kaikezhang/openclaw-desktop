@@ -331,6 +331,18 @@ async function startRecording() {
   try {
     interruptTTS();
 
+    // Check STT availability before requesting mic access
+    const result = await window.electronAPI.stt.startListening();
+    if (!result.success) {
+      // Show gentle hint instead of alarming error
+      const msg = result.error?.includes('not configured')
+        ? (window.I18N ? '🎤 请在设置中配置 Deepgram API Key' : '🎤 Configure Deepgram API Key in Settings')
+        : ('STT: ' + (result.error || 'unknown'));
+      showBubble(msg);
+      setAppState('idle');
+      return;
+    }
+
     audioStream = await navigator.mediaDevices.getUserMedia({
       audio: {
         echoCancellation: true,
@@ -339,15 +351,6 @@ async function startRecording() {
         sampleRate: 16000,
       },
     });
-
-    const result = await window.electronAPI.stt.startListening();
-    if (!result.success) {
-      showBubble('STT failed: ' + (result.error || 'unknown'));
-      setAppState('idle');
-      audioStream.getTracks().forEach((t) => t.stop());
-      audioStream = null;
-      return;
-    }
 
     audioContext = new (window.AudioContext || window.webkitAudioContext)({
       sampleRate: 16000,
