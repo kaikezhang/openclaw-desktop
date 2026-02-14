@@ -127,10 +127,20 @@ function initCharacterMode(mode) {
     case 'live2d':
       if (l2dCanvas && window.Live2DManager) {
         l2dCanvas.style.display = 'block';
-        live2dManager = new Live2DManager(l2dCanvas);
-        live2dManager.init();
-        live2dManager.loadModel('../../assets/models/Hiyori/Hiyori.model3.json');
-        console.log('[App] Using Live2DManager (Live2D mode)');
+        // Ensure canvas has actual pixel dimensions before PixiJS init
+        const parent = l2dCanvas.parentElement;
+        if (parent) {
+          const rect = parent.getBoundingClientRect();
+          l2dCanvas.width = Math.round(rect.width) || 330;
+          l2dCanvas.height = Math.round(rect.height) || 400;
+        }
+        // Delay init slightly to ensure layout is computed after display:block
+        setTimeout(() => {
+          live2dManager = new Live2DManager(l2dCanvas);
+          live2dManager.init();
+          live2dManager.loadModel('../../assets/models/Hiyori/Hiyori.model3.json');
+          console.log('[App] Using Live2DManager (Live2D mode)');
+        }, 50);
       }
       break;
   }
@@ -334,11 +344,16 @@ async function startRecording() {
     // Check STT availability before requesting mic access
     const result = await window.electronAPI.stt.startListening();
     if (!result.success) {
-      // Show gentle hint instead of alarming error
-      const msg = result.error?.includes('not configured')
-        ? (window.I18N ? '🎤 请在设置中配置 Deepgram API Key' : '🎤 Configure Deepgram API Key in Settings')
-        : ('STT: ' + (result.error || 'unknown'));
-      showBubble(msg);
+      // If not configured, hint to use text input instead
+      if (result.error?.includes('not configured')) {
+        const msg = window.I18N
+          ? window.I18N.t('type-message')
+          : 'Use text input below (voice requires Deepgram API key)';
+        showBubble('⌨️ ' + msg);
+        textInput.focus();
+      } else {
+        showBubble('STT: ' + (result.error || 'unknown'));
+      }
       setAppState('idle');
       return;
     }
