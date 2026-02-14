@@ -68,4 +68,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   file: {
     showInFolder: (filePath: string) => ipcRenderer.invoke('file:showInFolder', filePath),
   },
+
+  // ===== Settings =====
+  settings: {
+    get: () => ipcRenderer.invoke('settings:get'),
+    set: (patch: Record<string, any>) => ipcRenderer.invoke('settings:set', patch),
+  },
+
+  // ===== Global Hotkeys =====
+  onToggleRecord: (cb: () => void) =>
+    ipcRenderer.on('hotkey:toggleRecord', () => cb()),
+  onToggleMini: (cb: () => void) =>
+    ipcRenderer.on('hotkey:toggleMini', () => cb()),
 });

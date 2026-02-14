@@ -9,7 +9,11 @@
     "dev": "tsc --watch & electron . --dev",
     "dev:build": "tsc --watch",
     "dev:electron": "electron . --dev",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "dist": "npm run build && electron-builder",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:linux": "npm run build && electron-builder --linux"
   },
   "keywords": [
     "electron",
@@ -51,7 +55,23 @@
     ],
     "mac": {
       "category": "public.app-category.productivity",
-      "target": ["dmg", "zip"]
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "linux": {
+      "category": "AudioVideo",
+      "target": [
+        "AppImage",
+        "deb"
+      ]
     }
   }
 }
