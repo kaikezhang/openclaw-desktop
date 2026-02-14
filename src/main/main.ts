@@ -10,6 +10,7 @@ import { STTEngine } from './stt-engine';
 import { registerIpcHandlers } from './ipc-handlers';
 import { ImageGenEngine } from './image-gen';
 import { initAutoUpdater } from './auto-updater';
+import { getSettings } from './settings-store';
 
 // Suppress EPIPE errors when running in background
 process.stdout.on('error', (err: NodeJS.ErrnoException) => {
@@ -34,6 +35,20 @@ const ttsEngine = new TTSEngine({
   model: process.env.MINIMAX_MODEL || 'speech-02-hd',
   voiceId: process.env.MINIMAX_VOICE_ID || 'Chinese (Mandarin)_Warm_Girl',
 });
+
+// Apply saved voice setting (migrate from old default if needed)
+{
+  const settings = getSettings();
+  const voice = settings.minimaxVoiceId;
+  // Migrate: old default 'Lovely_Girl' → new default
+  if (!voice || voice === 'Lovely_Girl') {
+    const { setSettings } = require('./settings-store');
+    setSettings({ minimaxVoiceId: 'Chinese (Mandarin)_Warm_Girl' });
+    ttsEngine.setVoice('Chinese (Mandarin)_Warm_Girl');
+  } else {
+    ttsEngine.setVoice(voice);
+  }
+}
 
 const sttEngine = new STTEngine({
   apiKey: process.env.DEEPGRAM_API_KEY || '',

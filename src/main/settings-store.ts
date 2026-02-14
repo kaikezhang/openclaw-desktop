@@ -25,7 +25,7 @@ const defaults: AppSettings = {
   minimaxApiKey: '',
   minimaxGroupId: '',
   minimaxModel: 'speech-02-hd',
-  minimaxVoiceId: 'Lovely_Girl',
+  minimaxVoiceId: 'Chinese (Mandarin)_Warm_Girl',
   live2dModelPath: 'Hiyori/Hiyori.model3.json',
   theme: 'dark',
   hotkeyToggleRecord: 'CommandOrControl+Shift+O',
