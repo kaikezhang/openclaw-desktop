@@ -544,3 +544,50 @@ body {
   color: #666;
   margin-top: 4px;
 }
+
+/* ===== Theme: Light ===== */
+body.theme-light {
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+  color: #333;
+}
+body.theme-light .widget-container {
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #ddd;
+}
+body.theme-light .speech-bubble {
+  background: #fff;
+  color: #333;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+body.theme-light .text-input {
+  background: #f0f0f0;
+  color: #333;
+  border-color: #ccc;
+}
+body.theme-light .state-text, body.theme-light .status-hint { color: #666; }
+body.theme-light .tiny-btn { background: #e0e0e0; color: #333; }
+body.theme-light .tiny-btn:hover { background: #d0d0d0; }
+
+/* ===== Theme: Purple Night ===== */
+body.theme-purple {
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #1f0c36 100%);
+  color: #e0e0e0;
+}
+body.theme-purple .widget-container {
+  background: rgba(30, 20, 60, 0.85);
+  border: 1px solid rgba(138, 43, 226, 0.3);
+}
+body.theme-purple .speech-bubble {
+  background: linear-gradient(135deg, #2d1b4e, #1a1a3e);
+  border: 1px solid rgba(138, 43, 226, 0.3);
+}
+body.theme-purple .state-dot {
+  background: #9b59b6;
+  box-shadow: 0 0 8px #9b59b6;
+}
+body.theme-purple .aura-canvas { opacity: 0.6; }
+body.theme-purple .text-input {
+  background: rgba(30, 20, 60, 0.8);
+  border-color: rgba(138, 43, 226, 0.3);
+  color: #e0e0e0;
+}

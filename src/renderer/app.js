@@ -40,7 +40,15 @@ const miniOrb = document.getElementById('mini-orb');
 const widgetContainer = document.getElementById('widget-container');
 
 // ===== Init =====
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
+  // Load theme from settings
+  try {
+    const settings = await window.electronAPI?.settings?.get();
+    if (settings?.theme) {
+      document.body.classList.add('theme-' + settings.theme);
+    }
+  } catch (e) { /* ignore */ }
+
   // Aura canvas
   const auraCanvas = document.getElementById('aura-canvas');
   if (auraCanvas && window.OrbAnimator) {
