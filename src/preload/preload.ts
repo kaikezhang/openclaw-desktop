@@ -88,4 +88,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('hotkey:toggleRecord', () => cb()),
   onToggleMini: (cb: () => void) =>
     ipcRenderer.on('hotkey:toggleMini', () => cb()),
+
+  // ===== Auto-Updater =====
+  updater: {
+    onAvailable: (cb: (data: { version: string }) => void) =>
+      ipcRenderer.on('updater:available', (_e, data) => cb(data)),
+    onProgress: (cb: (data: { percent: number }) => void) =>
+      ipcRenderer.on('updater:progress', (_e, data) => cb(data)),
+    onDownloaded: (cb: (data: { version: string }) => void) =>
+      ipcRenderer.on('updater:downloaded', (_e, data) => cb(data)),
+  },
 });
