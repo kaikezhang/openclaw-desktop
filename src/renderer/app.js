@@ -64,6 +64,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (settings?.characterMode) characterMode = settings.characterMode;
   } catch (e) { /* ignore */ }
 
+  currentCharModeIndex = CHARACTER_MODES.indexOf(characterMode);
+  if (currentCharModeIndex < 0) currentCharModeIndex = 0;
   initCharacterMode(characterMode);
 
   // Audio player queue
