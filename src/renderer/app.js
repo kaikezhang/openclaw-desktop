@@ -603,17 +603,40 @@ function exitMiniMode() {
 }
 
 // ===== Bubble =====
+let typewriterTimer = null;
+
 function showBubble(content, isUser = false) {
   clearTimeout(bubbleHideTimer);
+  if (typewriterTimer) { clearInterval(typewriterTimer); typewriterTimer = null; }
+
   speechBubble.style.display = 'block';
   speechBubble.style.opacity = '1';
 
   if (isUser) {
     speechBubble.className = 'speech-bubble user-speech';
+    bubbleText.innerHTML = content;
   } else {
     speechBubble.className = 'speech-bubble ai-response';
+    // Typewriter effect for AI responses (skip for HTML like thinking dots)
+    if (content.includes('<')) {
+      bubbleText.innerHTML = content;
+    } else {
+      bubbleText.textContent = '';
+      let i = 0;
+      const text = content;
+      typewriterTimer = setInterval(() => {
+        if (i < text.length) {
+          bubbleText.textContent += text[i];
+          i++;
+          // Auto-scroll
+          speechBubble.scrollTop = speechBubble.scrollHeight;
+        } else {
+          clearInterval(typewriterTimer);
+          typewriterTimer = null;
+        }
+      }, 30);
+    }
   }
-  bubbleText.innerHTML = content;
 
   bubbleHideTimer = setTimeout(() => hideBubble(), BUBBLE_AUTO_HIDE);
 }
