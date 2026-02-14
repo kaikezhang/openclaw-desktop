@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, Tray, Menu, globalShortcut, nativeImage } from 'electron';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 
@@ -37,9 +37,10 @@ const sttEngine = new STTEngine({
   apiKey: process.env.DEEPGRAM_API_KEY || '',
 });
 
-// ===== Window =====
+// ===== Window & Tray =====
 
 let mainWindow: BrowserWindow | null = null;
+let tray: Tray | null = null;
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -72,10 +73,79 @@ function createWindow(): void {
   });
 }
 
+// ===== System Tray =====
+
+function createTray(): void {
+  // Create a simple 16x16 icon programmatically
+  const icon = nativeImage.createFromDataURL(
+    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAA' +
+    'mElEQVQ4T2NkoBAwUqifgWoGMDIy/mdkZPzPwMBQwIBsEIoB////Z2RhYfnPwsJSwMjI' +
+    'WIBiABMT038WFhYGFhaW/0xMTAXoBjAxMf1nZmb+z8zM/J+JiamAkZGxAMUAJiYmBmZm' +
+    '5v/MzMwFjIyM/1EMYGJi+s/MzFzAyMhYgOIFJiam/8zMzAWMjIwFyM5ANYCBagYAAGGh' +
+    'FhHjNJDOAAAAAElFTkSuQmCC'
+  );
+
+  tray = new Tray(icon);
+  tray.setToolTip('OpenClaw Desktop');
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Show/Hide',
+      click: () => {
+        if (mainWindow?.isVisible()) {
+          mainWindow.hide();
+        } else {
+          mainWindow?.show();
+          mainWindow?.focus();
+        }
+      },
+    },
+    {
+      label: 'Mini Mode',
+      click: () => {
+        mainWindow?.webContents.send('hotkey:toggleMini');
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        app.quit();
+      },
+    },
+  ]);
+
+  tray.setContextMenu(contextMenu);
+
+  tray.on('click', () => {
+    if (mainWindow?.isVisible()) {
+      mainWindow.focus();
+    } else {
+      mainWindow?.show();
+    }
+  });
+}
+
+// ===== Global Shortcuts =====
+
+function registerGlobalShortcuts(): void {
+  // Toggle recording (push-to-talk)
+  globalShortcut.register('CommandOrControl+Shift+O', () => {
+    mainWindow?.webContents.send('hotkey:toggleRecord');
+  });
+
+  // Toggle mini mode
+  globalShortcut.register('CommandOrControl+Shift+M', () => {
+    mainWindow?.webContents.send('hotkey:toggleMini');
+  });
+}
+
 // ===== Lifecycle =====
 
 app.whenReady().then(() => {
   createWindow();
+  createTray();
+  registerGlobalShortcuts();
 
   // Register IPC handlers
   registerIpcHandlers({
@@ -89,6 +159,10 @@ app.whenReady().then(() => {
   openclawClient.connect()
     .then(() => console.log('[App] OpenClaw pre-connected'))
     .catch((err) => console.warn('[App] OpenClaw pre-connect failed (will retry on first chat):', err.message));
+});
+
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
 });
 
 app.on('window-all-closed', () => {

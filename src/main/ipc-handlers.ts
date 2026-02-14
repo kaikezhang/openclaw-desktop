@@ -4,6 +4,7 @@ import * as os from 'os';
 import { OpenClawClient } from './openclaw-client';
 import { TTSEngine } from './tts-engine';
 import { STTEngine } from './stt-engine';
+import { getSettings, setSettings, type AppSettings } from './settings-store';
 
 /**
  * Register all IPC handlers.
@@ -156,5 +157,16 @@ export function registerIpcHandlers(deps: {
     } catch (error: any) {
       return { success: false, error: error.message };
     }
+  });
+
+  // ===== Settings =====
+
+  ipcMain.handle('settings:get', async () => {
+    return getSettings();
+  });
+
+  ipcMain.handle('settings:set', async (_event, patch: Partial<AppSettings>) => {
+    setSettings(patch);
+    return { success: true };
   });
 }

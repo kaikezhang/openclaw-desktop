@@ -29,11 +29,8 @@ release/
 build/
 out/
 *.asar
-
-# Media assets (user-provided)
-*.mp4
-assets/models/*.moc3
-assets/models/*.model3.json
-assets/models/**/*.png
-assets/models/**/*.json
-!assets/models/.gitkeep
+*.dmg
+*.AppImage
+*.deb
+*.exe
+*.snap

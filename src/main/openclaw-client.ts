@@ -1,8 +1,10 @@
 import WebSocket from 'ws';
+import { randomUUID } from 'crypto';
 
 export interface OpenClawConfig {
   port: number;
   token: string;
+  onEvent?: (event: any) => void;
 }
 
 export interface ChatStreamCallbacks {
@@ -14,21 +16,36 @@ export interface ChatStreamCallbacks {
 /**
  * OpenClaw WebSocket gateway client.
  *
- * Protocol flow:
- *   1. Connect → receive `connect.challenge` event
- *   2. Send `connect` request with auth token
- *   3. Send `chat.send` requests, receive streamed `chat` events
+ * Protocol (matches actual gateway implementation):
+ *   1. Connect WebSocket to ws://localhost:{port}
+ *   2. Receive `connect.challenge` event with { nonce }
+ *   3. Send `connect` request with auth + nonce
+ *   4. Receive response with hello payload (includes policy.tickIntervalMs)
+ *   5. Send `chat.send` requests, receive streamed `chat` events
+ *   6. Gateway sends periodic `tick` events for keepalive
  */
 export class OpenClawClient {
   private ws: WebSocket | null = null;
   private connected = false;
-  private requestId = 0;
+  private closed = false;
+  private connectNonce: string | null = null;
   private pendingRequests = new Map<string, {
     resolve: (value: any) => void;
     reject: (reason: Error) => void;
   }>();
   private config: OpenClawConfig;
+
+  // Reconnection
+  private backoffMs = 1000;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Tick keepalive
+  private tickIntervalMs = 30_000;
+  private lastTick: number | null = null;
+  private tickWatchTimer: ReturnType<typeof setInterval> | null = null;
+
+  // Event sequence tracking
+  private lastSeq: number | null = null;
 
   constructor(config: OpenClawConfig) {
     this.config = config;
@@ -41,16 +58,21 @@ export class OpenClawClient {
   /** Connect and authenticate with the OpenClaw gateway. */
   connect(): Promise<void> {
     if (this.isConnected) return Promise.resolve();
+    this.closed = false;
 
     return new Promise((resolve, reject) => {
       const url = `ws://localhost:${this.config.port}`;
       console.log(`[OpenClaw] Connecting to ${url}...`);
 
-      this.ws = new WebSocket(url);
+      this.ws = new WebSocket(url, { maxPayload: 25 * 1024 * 1024 });
+      this.connectNonce = null;
 
       const timeout = setTimeout(() => {
         reject(new Error('OpenClaw connection timeout'));
+        this.ws?.close();
       }, 10_000);
+
+      let connectResolved = false;
 
       this.ws.on('open', () => {
         console.log('[OpenClaw] WebSocket open, waiting for challenge...');
@@ -59,7 +81,17 @@ export class OpenClawClient {
       this.ws.on('message', (raw) => {
         try {
           const msg = JSON.parse(raw.toString());
-          this.handleMessage(msg, timeout, resolve, reject);
+          this.handleMessage(msg, timeout, () => {
+            if (!connectResolved) {
+              connectResolved = true;
+              resolve();
+            }
+          }, (err) => {
+            if (!connectResolved) {
+              connectResolved = true;
+              reject(err);
+            }
+          });
         } catch (e) {
           console.error('[OpenClaw] Failed to parse message:', e);
         }
@@ -67,40 +99,53 @@ export class OpenClawClient {
 
       this.ws.on('error', (err) => {
         console.error('[OpenClaw] WebSocket error:', err.message);
-        this.connected = false;
       });
 
-      this.ws.on('close', () => {
-        console.log('[OpenClaw] WebSocket closed');
+      this.ws.on('close', (code, reason) => {
+        const reasonText = reason?.toString() || '';
+        console.log(`[OpenClaw] WebSocket closed (${code}): ${reasonText}`);
         this.connected = false;
         this.ws = null;
+        this.stopTickWatch();
+        this.flushPendingErrors(new Error(`gateway closed (${code}): ${reasonText}`));
+
+        if (!connectResolved) {
+          connectResolved = true;
+          reject(new Error(`Connection closed (${code}): ${reasonText}`));
+        }
+
+        // Auto-reconnect unless explicitly closed
+        if (!this.closed) {
+          this.scheduleReconnect();
+        }
       });
     });
   }
 
   /** Disconnect from the gateway. */
   disconnect(): void {
+    this.closed = true;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    this.stopTickWatch();
     if (this.ws) {
       this.ws.close();
       this.ws = null;
     }
     this.connected = false;
-    this.pendingRequests.clear();
+    this.flushPendingErrors(new Error('client disconnected'));
   }
 
   /**
    * Send a chat message and stream the response.
-   * Returns the full accumulated text when the stream completes.
    */
   async chat(message: string, callbacks: ChatStreamCallbacks): Promise<string> {
     await this.ensureConnected();
 
-    const reqId = `chat-${++this.requestId}`;
-    const idempotencyKey = `openclaw-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    const reqId = randomUUID();
+    const idempotencyKey = randomUUID();
     let accumulatedText = '';
 
     return new Promise((resolve, reject) => {
@@ -147,17 +192,8 @@ export class OpenClawClient {
               resolve(accumulatedText);
             }
           }
-
-          // Try to extract text from other events
-          if (msg.type === 'event' && msg.event !== 'chat' && msg.event !== 'connect.challenge') {
-            const payload = msg.payload || {};
-            if (payload.text && typeof payload.text === 'string') {
-              accumulatedText += payload.text;
-              callbacks.onText(payload.text);
-            }
-          }
         } catch (_) {
-          // Ignore parse errors
+          // Ignore parse errors in chat handler
         }
       };
 
@@ -181,7 +217,7 @@ export class OpenClawClient {
     await this.ensureConnected();
 
     return new Promise((resolve, reject) => {
-      const id = `req-${++this.requestId}`;
+      const id = randomUUID();
       this.pendingRequests.set(id, { resolve, reject });
 
       this.ws!.send(JSON.stringify({ type: 'req', id, method, params }));
@@ -203,44 +239,103 @@ export class OpenClawClient {
     }
   }
 
+  private sendConnect(): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+
+    const connectId = randomUUID();
+
+    // Store pending so we can handle the response
+    this.pendingRequests.set(connectId, {
+      resolve: (payload: any) => {
+        this.connected = true;
+        this.backoffMs = 1000; // Reset backoff on success
+
+        // Extract tick interval from policy
+        if (typeof payload?.policy?.tickIntervalMs === 'number') {
+          this.tickIntervalMs = payload.policy.tickIntervalMs;
+        }
+        this.lastTick = Date.now();
+        this.startTickWatch();
+
+        console.log(`[OpenClaw] Authenticated (tickInterval=${this.tickIntervalMs}ms)`);
+      },
+      reject: (err: Error) => {
+        console.error('[OpenClaw] Auth failed:', err.message);
+        this.ws?.close(1008, 'connect failed');
+      },
+    });
+
+    this.ws.send(JSON.stringify({
+      type: 'req',
+      id: connectId,
+      method: 'connect',
+      params: {
+        minProtocol: 3,
+        maxProtocol: 3,
+        client: {
+          id: 'openclaw-desktop',
+          version: '0.2.0',
+          platform: 'electron',
+          mode: 'backend',
+        },
+        role: 'operator',
+        scopes: ['operator.admin'],
+        auth: { token: this.config.token },
+        ...(this.connectNonce ? { nonce: this.connectNonce } : {}),
+      },
+    }));
+  }
+
   private handleMessage(
     msg: any,
     connectTimeout: ReturnType<typeof setTimeout>,
     connectResolve: () => void,
-    connectReject: (err: Error) => void,
+    _connectReject: (err: Error) => void,
   ): void {
-    // Connection challenge → send auth
+    // Connection challenge → store nonce and send auth
     if (msg.type === 'event' && msg.event === 'connect.challenge') {
-      console.log('[OpenClaw] Got challenge, authenticating...');
-      this.ws!.send(JSON.stringify({
-        type: 'req',
-        id: 'connect-1',
-        method: 'connect',
-        params: {
-          minProtocol: 3,
-          maxProtocol: 3,
-          client: { id: 'openclaw-desktop', version: '0.2.0', platform: 'electron', mode: 'backend' },
-          role: 'operator',
-          scopes: ['operator.read', 'operator.write'],
-          auth: { token: this.config.token },
-        },
-      }));
-    }
-
-    // Connection auth response
-    if (msg.type === 'res' && msg.id === 'connect-1') {
-      clearTimeout(connectTimeout);
-      if (msg.ok) {
-        this.connected = true;
-        console.log('[OpenClaw] Authenticated');
-        connectResolve();
-      } else {
-        connectReject(new Error(msg.error?.message || 'Auth failed'));
+      const nonce = msg.payload?.nonce;
+      if (typeof nonce === 'string') {
+        this.connectNonce = nonce;
       }
+      console.log('[OpenClaw] Got challenge, authenticating...');
+
+      // Override the pending connect handler to also resolve the connect() promise
+      const origSendConnect = this.sendConnect.bind(this);
+      const self = this;
+
+      // We need to intercept the connect response to resolve the outer promise
+      this.sendConnect = function overriddenSendConnect() {
+        origSendConnect();
+        self.sendConnect = origSendConnect; // Restore original
+      };
+
+      // Actually: simpler approach — just send connect and handle response in generic handler
+      this.sendConnectWithCallback(connectTimeout, connectResolve, _connectReject);
+      return;
     }
 
-    // Route other responses to pending requests
-    if (msg.type === 'res' && msg.id !== 'connect-1') {
+    // Tick keepalive
+    if (msg.type === 'event' && msg.event === 'tick') {
+      this.lastTick = Date.now();
+      return;
+    }
+
+    // Track event sequence
+    if (msg.type === 'event' && typeof msg.seq === 'number') {
+      if (this.lastSeq !== null && msg.seq > this.lastSeq + 1) {
+        console.warn(`[OpenClaw] Event gap: expected seq ${this.lastSeq + 1}, got ${msg.seq}`);
+      }
+      this.lastSeq = msg.seq;
+    }
+
+    // Forward all events to callback
+    if (msg.type === 'event') {
+      this.config.onEvent?.(msg);
+    }
+
+    // Route responses to pending requests
+    if (msg.type === 'res') {
       const pending = this.pendingRequests.get(msg.id);
       if (pending) {
         this.pendingRequests.delete(msg.id);
@@ -251,5 +346,96 @@ export class OpenClawClient {
         }
       }
     }
+  }
+
+  private sendConnectWithCallback(
+    connectTimeout: ReturnType<typeof setTimeout>,
+    connectResolve: () => void,
+    connectReject: (err: Error) => void,
+  ): void {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+
+    const connectId = randomUUID();
+
+    this.pendingRequests.set(connectId, {
+      resolve: (payload: any) => {
+        clearTimeout(connectTimeout);
+        this.connected = true;
+        this.backoffMs = 1000;
+
+        if (typeof payload?.policy?.tickIntervalMs === 'number') {
+          this.tickIntervalMs = payload.policy.tickIntervalMs;
+        }
+        this.lastTick = Date.now();
+        this.startTickWatch();
+
+        console.log(`[OpenClaw] Authenticated (tickInterval=${this.tickIntervalMs}ms)`);
+        connectResolve();
+      },
+      reject: (err: Error) => {
+        clearTimeout(connectTimeout);
+        console.error('[OpenClaw] Auth failed:', err.message);
+        connectReject(err);
+        this.ws?.close(1008, 'connect failed');
+      },
+    });
+
+    this.ws.send(JSON.stringify({
+      type: 'req',
+      id: connectId,
+      method: 'connect',
+      params: {
+        minProtocol: 3,
+        maxProtocol: 3,
+        client: {
+          id: 'openclaw-desktop',
+          version: '0.2.0',
+          platform: 'electron',
+          mode: 'backend',
+        },
+        role: 'operator',
+        scopes: ['operator.admin'],
+        auth: { token: this.config.token },
+        ...(this.connectNonce ? { nonce: this.connectNonce } : {}),
+      },
+    }));
+  }
+
+  private scheduleReconnect(): void {
+    if (this.closed) return;
+    const delay = this.backoffMs;
+    this.backoffMs = Math.min(this.backoffMs * 2, 30_000);
+    console.log(`[OpenClaw] Reconnecting in ${delay}ms...`);
+    this.reconnectTimer = setTimeout(() => {
+      this.connect().catch((err) => {
+        console.error('[OpenClaw] Reconnect failed:', err.message);
+      });
+    }, delay);
+  }
+
+  private startTickWatch(): void {
+    this.stopTickWatch();
+    const interval = Math.max(this.tickIntervalMs, 1000);
+    this.tickWatchTimer = setInterval(() => {
+      if (this.closed || !this.lastTick) return;
+      if (Date.now() - this.lastTick > this.tickIntervalMs * 2) {
+        console.warn('[OpenClaw] Tick timeout, closing connection');
+        this.ws?.close(4000, 'tick timeout');
+      }
+    }, interval);
+  }
+
+  private stopTickWatch(): void {
+    if (this.tickWatchTimer) {
+      clearInterval(this.tickWatchTimer);
+      this.tickWatchTimer = null;
+    }
+  }
+
+  private flushPendingErrors(err: Error): void {
+    for (const [, p] of this.pendingRequests) {
+      p.reject(err);
+    }
+    this.pendingRequests.clear();
   }
 }
