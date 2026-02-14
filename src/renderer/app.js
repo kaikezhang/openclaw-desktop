@@ -727,6 +727,58 @@ if (closeHistoryBtn) {
   });
 }
 
+// ===== Context Menu =====
+characterArea.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  const menu = document.createElement('div');
+  menu.className = 'context-menu';
+  menu.style.cssText = `
+    position: fixed; left: ${e.clientX}px; top: ${e.clientY}px; z-index: 999;
+    background: var(--bg-secondary, #1e1e3a); border: 1px solid var(--border-color, #333);
+    border-radius: 8px; padding: 4px 0; min-width: 160px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4); font-size: 13px;
+  `;
+
+  const items = [
+    { label: window.I18N ? window.I18N.t('mode-glassorb') : '🫧 Glass Orb', action: () => { initCharacterMode('glassorb'); currentCharModeIndex = 0; } },
+    { label: window.I18N ? window.I18N.t('mode-sprite') : '🎨 Sprite', action: () => { initCharacterMode('sprite'); currentCharModeIndex = 1; } },
+    { label: window.I18N ? window.I18N.t('mode-live2d') : '🎭 Live2D', action: () => { initCharacterMode('live2d'); currentCharModeIndex = 2; } },
+    { divider: true },
+    { label: window.I18N ? window.I18N.t('chat-history') : 'Chat History', action: () => { if (historyPanel) { historyPanel.style.display = 'flex'; renderHistory(); } } },
+    { label: window.I18N ? window.I18N.t('settings-title') : '⚙️ Settings', action: () => { window.electronAPI?.settings?.get(); /* trigger settings window via tray */ } },
+  ];
+
+  for (const item of items) {
+    if (item.divider) {
+      const hr = document.createElement('div');
+      hr.style.cssText = 'height:1px;background:var(--border-color,#333);margin:4px 8px;';
+      menu.appendChild(hr);
+      continue;
+    }
+    const el = document.createElement('div');
+    el.textContent = item.label;
+    el.style.cssText = `
+      padding: 6px 16px; cursor: pointer; color: var(--text-primary, #e0e0e0);
+      transition: background 0.15s;
+    `;
+    el.addEventListener('mouseenter', () => { el.style.background = 'rgba(124,111,239,0.15)'; });
+    el.addEventListener('mouseleave', () => { el.style.background = ''; });
+    el.addEventListener('click', () => {
+      item.action();
+      menu.remove();
+    });
+    menu.appendChild(el);
+  }
+
+  document.body.appendChild(menu);
+
+  // Close on click outside
+  const closeMenu = (ev) => {
+    if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', closeMenu); }
+  };
+  setTimeout(() => document.addEventListener('click', closeMenu), 10);
+});
+
 // ===== Audio Visualization Loop =====
 function startVizLoop() {
   function vizFrame() {
