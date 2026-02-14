@@ -9,6 +9,7 @@ import { TTSEngine } from './tts-engine';
 import { STTEngine } from './stt-engine';
 import { registerIpcHandlers } from './ipc-handlers';
 import { ImageGenEngine } from './image-gen';
+import { initAutoUpdater } from './auto-updater';
 
 // Suppress EPIPE errors when running in background
 process.stdout.on('error', (err: NodeJS.ErrnoException) => {
@@ -211,6 +212,9 @@ app.whenReady().then(() => {
     getLoginItem,
     setLoginItem,
   });
+
+  // Auto-updater (only in packaged builds)
+  initAutoUpdater(() => mainWindow);
 
   // Pre-connect to OpenClaw (non-blocking)
   openclawClient.connect()
