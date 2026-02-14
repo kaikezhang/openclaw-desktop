@@ -103,10 +103,13 @@ function initCharacterMode(mode) {
 
   const l2dCanvas = document.getElementById('live2d-canvas');
   const spriteContainer = document.getElementById('character-sprite-container');
+  const auraCanvas = document.getElementById('aura-canvas');
 
   // Hide all
   if (l2dCanvas) l2dCanvas.style.display = 'none';
   if (spriteContainer) { spriteContainer.style.display = 'none'; spriteContainer.innerHTML = ''; }
+  // Hide aura for glass orb (it has its own visuals); show for other modes
+  if (auraCanvas) auraCanvas.style.display = mode === 'glassorb' ? 'none' : 'block';
 
   switch (mode) {
     case 'glassorb':

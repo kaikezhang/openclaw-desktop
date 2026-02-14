@@ -172,6 +172,7 @@ class GlassOrbCharacter {
       width: 100px; height: 100px;
       z-index: 0; pointer-events: none; opacity: 0;
       transition: opacity 0.3s ease;
+      display: none;
     `;
     // Create ring bars
     this.vizBars = [];
@@ -597,6 +598,7 @@ class GlassOrbCharacter {
    */
   updateVisualizer(volume) {
     if (volume > 0.01) {
+      this.vizRing.style.display = 'block';
       this.vizRing.style.opacity = '1';
       for (let i = 0; i < this.vizBars.length; i++) {
         const bar = this.vizBars[i];
@@ -614,6 +616,7 @@ class GlassOrbCharacter {
       }
     } else {
       this.vizRing.style.opacity = '0';
+      this.vizRing.style.display = 'none';
     }
   }
 
