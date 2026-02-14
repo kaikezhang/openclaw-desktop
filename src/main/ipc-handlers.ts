@@ -1,4 +1,4 @@
-import { ipcMain, shell, BrowserWindow } from 'electron';
+import { ipcMain, shell, BrowserWindow, Notification } from 'electron';
 import * as fs from 'fs';
 import * as os from 'os';
 import { OpenClawClient } from './openclaw-client';
@@ -181,6 +181,28 @@ export function registerIpcHandlers(deps: {
     } catch (error: any) {
       return { success: false, error: error.message };
     }
+  });
+
+  // ===== System Notifications =====
+
+  ipcMain.handle('notify', async (_event, opts: { title: string; body: string }) => {
+    const win = getWindow();
+    // Only notify if window is not focused
+    if (win && !win.isFocused()) {
+      const notification = new Notification({
+        title: opts.title || 'OpenClaw Desktop',
+        body: opts.body || '',
+        icon: undefined, // Uses app icon
+      });
+      notification.on('click', () => {
+        if (win) {
+          win.show();
+          win.focus();
+        }
+      });
+      notification.show();
+    }
+    return { success: true };
   });
 
   // ===== Settings =====

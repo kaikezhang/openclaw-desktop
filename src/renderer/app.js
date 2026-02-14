@@ -467,6 +467,12 @@ async function handleCommand(command) {
     // Bounce glass orb on new response
     if (glassOrbCharacter) glassOrbCharacter.bounce();
 
+    // System notification if window not focused
+    if (!document.hasFocus() && window.electronAPI?.notify) {
+      const preview = reply.length > 80 ? reply.substring(0, 80) + '...' : reply;
+      window.electronAPI.notify('OpenClaw', preview);
+    }
+
     // Add AI reply to history
     if (typeof addToHistory === 'function') addToHistory('assistant', reply);
 
