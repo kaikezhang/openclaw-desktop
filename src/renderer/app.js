@@ -178,33 +178,33 @@ function setAppState(newState) {
 
   switch (newState) {
     case 'idle':
-      stateText.textContent = 'Tap to start';
+      stateText.textContent = window.I18N ? window.I18N.t('tap-to-start') : 'Tap to start';
       statusHint.textContent = '';
       break;
     case 'listening':
       stateDot.classList.add('listening');
       statusHint.classList.add('listening');
-      stateText.textContent = 'Listening...';
-      statusHint.textContent = 'Speak now...';
+      stateText.textContent = window.I18N ? window.I18N.t('listening') : 'Listening...';
+      statusHint.textContent = window.I18N ? window.I18N.t('speak-now') : 'Speak now...';
       break;
     case 'thinking':
       stateDot.classList.add('thinking');
       statusHint.classList.add('thinking');
-      stateText.textContent = 'Thinking...';
-      statusHint.textContent = 'Analyzing your request';
+      stateText.textContent = window.I18N ? window.I18N.t('thinking') : 'Thinking...';
+      statusHint.textContent = window.I18N ? window.I18N.t('analyzing') : 'Analyzing your request';
       showBubble('<div class="thinking-dots"><span></span><span></span><span></span></div>', false);
       break;
     case 'speaking':
       stateDot.classList.add('speaking');
       statusHint.classList.add('speaking');
-      stateText.textContent = 'Speaking...';
-      statusHint.textContent = 'Replying';
+      stateText.textContent = window.I18N ? window.I18N.t('speaking') : 'Speaking...';
+      statusHint.textContent = window.I18N ? window.I18N.t('replying') : 'Replying';
       break;
     case 'followup':
       stateDot.classList.add('listening');
       statusHint.classList.add('listening');
-      stateText.textContent = 'Continue speaking...';
-      statusHint.textContent = 'Ask a follow-up';
+      stateText.textContent = window.I18N ? window.I18N.t('continue-speaking') : 'Continue speaking...';
+      statusHint.textContent = window.I18N ? window.I18N.t('ask-followup') : 'Ask a follow-up';
       followupTimer = setTimeout(() => {
         stopRecording().then(() => {
           setAppState('idle');
