@@ -9,13 +9,22 @@ AI voice assistant with Live2D avatar, built on Electron + OpenClaw.
 - **Voice conversation** — Deepgram Nova-2 STT with VAD and keep-alive
 - **Streaming TTS** — MiniMax Speech-02-HD with sentence splitting and queued playback
 - **Live2D avatar** — PixiJS + pixi-live2d-display (Cubism 2/3/4), Hiyori bundled as default
-- **OpenClaw gateway** — WebSocket client with nonce auth, tick keepalive, auto-reconnect
+- **OpenClaw gateway** — WebSocket client with ed25519 device identity auth, tick keepalive, auto-reconnect
+- **AI selfie generation** — fal.ai Flux integration for character image generation
 - **State machine** — `idle → listening → thinking → speaking → followup`
 - **Mini-orb mode** — Collapse to floating orb, still accepts voice input
 - **System tray** — Show/hide, mini mode, quit
 - **Global hotkeys** — `Ctrl+Shift+O` toggle recording, `Ctrl+Shift+M` toggle mini
 - **Settings panel** — Dark-themed UI for all configuration
 - **Cross-platform packaging** — electron-builder for macOS, Windows, Linux
+
+## Quick Setup (npx)
+
+```bash
+npx openclaw-desktop
+```
+
+Interactive wizard that checks OpenClaw, configures gateway + API keys, builds, and launches.
 
 ## Architecture
 
@@ -27,7 +36,9 @@ src/
 │   ├── openclaw-client.ts     # OpenClaw WebSocket gateway client
 │   ├── tts-engine.ts          # MiniMax TTS with sentence queue
 │   ├── stt-engine.ts          # Deepgram STT engine
-│   └── settings-store.ts      # JSON-based settings persistence
+│   ├── settings-store.ts      # JSON-based settings persistence
+│   ├── device-identity.ts     # ed25519 device key + signing
+│   └── image-gen.ts           # fal.ai selfie generation
 ├── renderer/                  # Frontend (vanilla HTML/CSS/JS)
 │   ├── index.html             # Main window
 │   ├── settings.html          # Settings panel
@@ -86,6 +97,7 @@ npm run dist:linux   # → release/*.AppImage, *.deb
 |---|---|
 | `OPENCLAW_PORT` | Gateway port (default: `18789`) |
 | `OPENCLAW_TOKEN` | Auth token for the gateway |
+| `FAL_KEY` | fal.ai API key (selfie generation) |
 | `DEEPGRAM_API_KEY` | Deepgram API key (STT) |
 | `MINIMAX_API_KEY` | MiniMax API key (TTS) |
 | `MINIMAX_GROUP_ID` | MiniMax Group ID |
@@ -93,6 +105,12 @@ npm run dist:linux   # → release/*.AppImage, *.deb
 | `MINIMAX_VOICE_ID` | Voice ID (default: `Lovely_Girl`) |
 
 Settings can also be configured via the in-app settings panel (persisted in userData).
+
+## Device Identity
+
+The app auto-detects your OpenClaw device identity from `~/.openclaw/identity/device.json`. No manual configuration needed — if OpenClaw is installed and configured, authentication is automatic.
+
+If no system identity is found, the app generates its own ed25519 keypair (stored in Electron userData).
 
 ## Live2D Model
 
