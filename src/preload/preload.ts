@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ===== OpenClaw Chat & Status =====
   chat: (message: string) => ipcRenderer.invoke('openclaw:chat', message),
   getConnectionStatus: () => ipcRenderer.invoke('openclaw:status'),
+  newSession: () => ipcRenderer.invoke('openclaw:newSession'),
 
   // ===== STT (Speech-to-Text) =====
   stt: {
@@ -91,6 +92,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('hotkey:toggleRecord', () => cb()),
   onToggleMini: (cb: () => void) =>
     ipcRenderer.on('hotkey:toggleMini', () => cb()),
+  onSessionReset: (cb: () => void) =>
+    ipcRenderer.on('session:reset', () => cb()),
 
   // ===== Auto-Updater =====
   updater: {

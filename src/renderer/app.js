@@ -87,6 +87,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   initSTTListeners();
   initTTSListeners();
+
+  // Session reset from tray menu
+  window.electronAPI?.onSessionReset?.(() => {
+    chatHistory = [];
+    if (historyPanel) renderHistory();
+    showBubble('New chat started ✨');
+  });
   initMiniMode();
 
   console.log('[App] Initialized');
@@ -710,7 +717,7 @@ function cleanMarkdown(text) {
 }
 
 // ===== Chat History =====
-const chatHistory = [];
+let chatHistory = [];
 const historyPanel = document.getElementById('chat-history-panel');
 const historyMessages = document.getElementById('chat-history-messages');
 const historyBtn = document.getElementById('history-btn');
@@ -827,6 +834,7 @@ characterArea.addEventListener('contextmenu', (e) => {
     { label: window.I18N ? window.I18N.t('mode-sprite') : '🎨 Sprite', action: () => { initCharacterMode('sprite'); currentCharModeIndex = 1; } },
     { label: window.I18N ? window.I18N.t('mode-live2d') : '🎭 Live2D', action: () => { initCharacterMode('live2d'); currentCharModeIndex = 2; } },
     { divider: true },
+    { label: '🔄 New Chat', action: async () => { await window.electronAPI?.newSession?.(); chatHistory = []; if (historyPanel) renderHistory(); showBubble('New chat started ✨'); } },
     { label: window.I18N ? window.I18N.t('chat-history') : 'Chat History', action: () => { if (historyPanel) { historyPanel.style.display = 'flex'; renderHistory(); } } },
     { label: window.I18N ? window.I18N.t('settings-title') : '⚙️ Settings', action: () => { window.electronAPI?.settings?.get(); /* trigger settings window via tray */ } },
   ];

@@ -59,6 +59,11 @@ export function registerIpcHandlers(deps: {
     return { connected: openclawClient.isConnected };
   });
 
+  ipcMain.handle('openclaw:newSession', async () => {
+    const sessionKey = openclawClient.newSession();
+    return { sessionKey };
+  });
+
   // ===== STT =====
 
   ipcMain.handle('stt:startListening', async () => {

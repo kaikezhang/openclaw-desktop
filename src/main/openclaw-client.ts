@@ -43,6 +43,9 @@ export class OpenClawClient {
   private config: OpenClawConfig;
   private deviceIdentity: DeviceIdentity;
 
+  // Session
+  private sessionKey = 'agent:main:desktop';
+
   // Reconnection
   private backoffMs = 1000;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -58,6 +61,18 @@ export class OpenClawClient {
   constructor(config: OpenClawConfig) {
     this.config = config;
     this.deviceIdentity = loadOrCreateDeviceIdentity();
+  }
+
+  /** Reset to a new session (generates new session key). */
+  newSession(): string {
+    this.sessionKey = `agent:main:desktop-${Date.now()}`;
+    console.log(`[OpenClaw] New session: ${this.sessionKey}`);
+    return this.sessionKey;
+  }
+
+  /** Get current session key. */
+  getSessionKey(): string {
+    return this.sessionKey;
   }
 
   get isConnected(): boolean {
@@ -234,7 +249,7 @@ export class OpenClawClient {
         id: reqId,
         method: 'chat.send',
         params: {
-          sessionKey: 'agent:main:main',
+          sessionKey: this.sessionKey,
           idempotencyKey,
           message,
         },

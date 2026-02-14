@@ -161,6 +161,13 @@ function createTray(): void {
         openSettingsWindow();
       },
     },
+    {
+      label: 'New Chat',
+      click: () => {
+        openclawClient.newSession();
+        mainWindow?.webContents.send('session:reset');
+      },
+    },
     { type: 'separator' },
     {
       label: 'Quit',
