@@ -155,14 +155,18 @@ export class TTSEngine {
 
   /** Call MiniMax TTS API — returns base64 audio or throws. */
   private async callMiniMaxTTS(text: string): Promise<string> {
-    if (!this.config.apiKey || !this.config.groupId) {
-      throw new Error('MiniMax API Key or Group ID not configured');
+    if (!this.config.apiKey) {
+      throw new Error('MiniMax API Key not configured');
     }
 
     console.log(`[TTS] MiniMax generating (voice: ${this.config.voiceId}): "${text.substring(0, 50)}..."`);
 
-    const response = await fetch(
-      `https://api.minimax.io/v1/t2a_v2?GroupId=${this.config.groupId}`,
+    // GroupId is optional for t2a_v2 API
+    const url = this.config.groupId
+      ? `https://api.minimax.io/v1/t2a_v2?GroupId=${this.config.groupId}`
+      : 'https://api.minimax.io/v1/t2a_v2';
+
+    const response = await fetch(url,
       {
         method: 'POST',
         headers: {
