@@ -1,0 +1,572 @@
+// ===== State Machine =====
+// States: idle | listening | thinking | speaking | followup
+let appState = 'idle';
+let isRecording = false;
+let isProcessing = false;
+let audioStream = null;
+let audioContext = null;
+let audioWorkletNode = null;
+let auraAnimator = null;
+let live2dManager = null;
+let audioPlayerQueue = null;
+let executeTimer = null;
+let countdownInterval = null;
+let accumulatedTranscript = '';
+let lastAIResponse = '';
+let isMiniMode = false;
+
+const FOLLOWUP_TIMEOUT = 30000;
+const BUBBLE_AUTO_HIDE = 12000;
+const EXECUTE_DELAY = 3000;
+
+let followupTimer = null;
+let bubbleHideTimer = null;
+
+// ===== DOM Elements =====
+const speechBubble = document.getElementById('speech-bubble');
+const bubbleText = document.getElementById('bubble-text');
+const statusHint = document.getElementById('status-hint');
+const characterArea = document.getElementById('character-area');
+const stateIndicator = document.getElementById('state-indicator');
+const stateDot = stateIndicator.querySelector('.state-dot');
+const stateText = document.getElementById('state-text');
+const minimizeBtn = document.getElementById('minimize-btn');
+const closeBtn = document.getElementById('close-btn');
+const textInput = document.getElementById('text-input');
+const sendBtn = document.getElementById('send-btn');
+const tapHint = document.getElementById('tap-hint');
+const listeningPulseRing = document.getElementById('listening-pulse-ring');
+const miniOrb = document.getElementById('mini-orb');
+const widgetContainer = document.getElementById('widget-container');
+
+// ===== Init =====
+document.addEventListener('DOMContentLoaded', () => {
+  // Aura canvas
+  const auraCanvas = document.getElementById('aura-canvas');
+  if (auraCanvas && window.OrbAnimator) {
+    auraAnimator = new OrbAnimator(auraCanvas);
+  }
+
+  // Live2D
+  const live2dCanvas = document.getElementById('live2d-canvas');
+  if (live2dCanvas && window.Live2DManager) {
+    live2dManager = new Live2DManager(live2dCanvas);
+    live2dManager.init();
+    // Attempt to load default model (user can place one in assets/models/)
+    // live2dManager.loadModel('../../assets/models/your-model/your-model.model3.json');
+  }
+
+  // Audio player queue
+  if (window.AudioPlayerQueue) {
+    audioPlayerQueue = new AudioPlayerQueue();
+    audioPlayerQueue.onPlayStart = (text) => {
+      showBubble(escapeHtml(text));
+    };
+    audioPlayerQueue.onQueueEmpty = () => {
+      // TTS done — enter followup mode
+      if (appState === 'speaking') {
+        isProcessing = false;
+        setAppState('followup');
+        startRecording();
+      }
+    };
+  }
+
+  initSTTListeners();
+  initTTSListeners();
+  initMiniMode();
+
+  console.log('[App] Initialized');
+});
+
+// ===== State Management =====
+function setAppState(newState) {
+  appState = newState;
+  clearTimeout(followupTimer);
+
+  stateDot.className = 'state-dot';
+  statusHint.className = 'status-hint';
+
+  // Tap hint visibility
+  if (newState === 'idle') {
+    tapHint.classList.remove('hidden');
+  } else {
+    tapHint.classList.add('hidden');
+  }
+
+  // Pulse ring
+  if (newState === 'listening' || newState === 'followup') {
+    listeningPulseRing.classList.remove('hidden');
+  } else {
+    listeningPulseRing.classList.add('hidden');
+  }
+
+  switch (newState) {
+    case 'idle':
+      stateText.textContent = 'Tap to start';
+      statusHint.textContent = '';
+      break;
+    case 'listening':
+      stateDot.classList.add('listening');
+      statusHint.classList.add('listening');
+      stateText.textContent = 'Listening...';
+      statusHint.textContent = 'Speak now...';
+      break;
+    case 'thinking':
+      stateDot.classList.add('thinking');
+      statusHint.classList.add('thinking');
+      stateText.textContent = 'Thinking...';
+      statusHint.textContent = 'Analyzing your request';
+      showBubble('<div class="thinking-dots"><span></span><span></span><span></span></div>', false);
+      break;
+    case 'speaking':
+      stateDot.classList.add('speaking');
+      statusHint.classList.add('speaking');
+      stateText.textContent = 'Speaking...';
+      statusHint.textContent = 'Replying';
+      break;
+    case 'followup':
+      stateDot.classList.add('listening');
+      statusHint.classList.add('listening');
+      stateText.textContent = 'Continue speaking...';
+      statusHint.textContent = 'Ask a follow-up';
+      followupTimer = setTimeout(() => {
+        stopRecording().then(() => {
+          setAppState('idle');
+          hideBubble(2000);
+        });
+      }, FOLLOWUP_TIMEOUT);
+      break;
+  }
+
+  // Sync aura
+  if (auraAnimator) {
+    const orbState = newState === 'followup' ? 'listening' : newState;
+    auraAnimator.setState(orbState);
+  }
+
+  // Sync Live2D
+  if (live2dManager?.isLoaded) {
+    live2dManager.setMotion(newState === 'followup' ? 'listening' : newState);
+  }
+
+  // Sync mini-orb
+  if (isMiniMode) {
+    setMiniOrbState(newState);
+  }
+}
+
+// ===== STT Listeners =====
+function initSTTListeners() {
+  window.electronAPI.stt.removeAllListeners();
+
+  window.electronAPI.stt.onConnected(() => {
+    console.log('[STT] Connected');
+  });
+
+  window.electronAPI.stt.onTranscript((data) => {
+    const { transcript, isFinal } = data;
+
+    if (isFinal) {
+      if (transcript.trim().length > 0) {
+        accumulatedTranscript += (accumulatedTranscript.length > 0 ? ' ' : '') + transcript.trim();
+        showBubble(escapeHtml(accumulatedTranscript), true);
+
+        clearTimeout(executeTimer);
+
+        executeTimer = setTimeout(() => {
+          clearInterval(countdownInterval);
+          const cmd = accumulatedTranscript;
+          accumulatedTranscript = '';
+          stopRecording().then(() => handleCommand(cmd));
+        }, EXECUTE_DELAY);
+
+        // Countdown
+        let countdown = Math.ceil(EXECUTE_DELAY / 1000);
+        clearInterval(countdownInterval);
+        statusHint.textContent = `Executing in ${countdown}s...`;
+        countdownInterval = setInterval(() => {
+          countdown--;
+          if (countdown > 0) {
+            statusHint.textContent = `Executing in ${countdown}s...`;
+          } else {
+            clearInterval(countdownInterval);
+          }
+        }, 1000);
+      }
+    } else {
+      if (transcript.trim().length > 0) {
+        statusHint.textContent = transcript + '...';
+      }
+    }
+  });
+
+  window.electronAPI.stt.onUtteranceEnd(() => {
+    if (accumulatedTranscript.trim().length > 0) {
+      clearTimeout(executeTimer);
+      clearInterval(countdownInterval);
+      const cmd = accumulatedTranscript;
+      accumulatedTranscript = '';
+      stopRecording().then(() => handleCommand(cmd));
+    }
+  });
+
+  window.electronAPI.stt.onError((error) => {
+    console.error('[STT] Error:', error);
+    stopRecording();
+    setAppState('idle');
+    showBubble('Speech recognition error');
+  });
+
+  window.electronAPI.stt.onClosed(() => {
+    console.log('[STT] Connection closed');
+  });
+}
+
+// ===== TTS Listeners =====
+function initTTSListeners() {
+  window.electronAPI.tts.removeAllListeners();
+
+  window.electronAPI.tts.onAudioChunk((data) => {
+    if (audioPlayerQueue) {
+      audioPlayerQueue.enqueue(data.audio, data.text);
+    }
+  });
+
+  window.electronAPI.tts.onFirstSentence(() => {
+    if (appState === 'thinking') {
+      setAppState('speaking');
+    }
+  });
+}
+
+// ===== TTS Interrupt =====
+function interruptTTS() {
+  if (audioPlayerQueue) {
+    audioPlayerQueue.stop();
+  }
+  window.electronAPI.tts.stop();
+}
+
+// ===== Recording =====
+async function startRecording() {
+  if (isRecording || isProcessing) return;
+
+  try {
+    interruptTTS();
+
+    audioStream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        sampleRate: 16000,
+      },
+    });
+
+    const result = await window.electronAPI.stt.startListening();
+    if (!result.success) {
+      showBubble('STT failed: ' + (result.error || 'unknown'));
+      setAppState('idle');
+      audioStream.getTracks().forEach((t) => t.stop());
+      audioStream = null;
+      return;
+    }
+
+    audioContext = new (window.AudioContext || window.webkitAudioContext)({
+      sampleRate: 16000,
+    });
+
+    await audioContext.audioWorklet.addModule('audio-processor.js');
+    const source = audioContext.createMediaStreamSource(audioStream);
+    audioWorkletNode = new AudioWorkletNode(audioContext, 'audio-processor');
+
+    audioWorkletNode.port.onmessage = (event) => {
+      if (isRecording && event.data) {
+        window.electronAPI.stt.sendAudio(new Uint8Array(event.data));
+      }
+    };
+
+    source.connect(audioWorkletNode);
+    isRecording = true;
+  } catch (error) {
+    console.error('[Recording] Failed:', error);
+    setAppState('idle');
+    if (error.name === 'NotAllowedError') {
+      showBubble('Microphone access denied');
+    } else if (error.name === 'NotFoundError') {
+      showBubble('No microphone found');
+    } else {
+      showBubble('Recording failed: ' + error.message);
+    }
+  }
+}
+
+async function stopRecording() {
+  if (!isRecording) return;
+  isRecording = false;
+
+  clearTimeout(executeTimer);
+  clearInterval(countdownInterval);
+
+  if (audioWorkletNode) {
+    audioWorkletNode.disconnect();
+    try { audioWorkletNode.port.close(); } catch (_) {}
+    audioWorkletNode = null;
+  }
+
+  if (audioContext && audioContext.state !== 'closed') {
+    await audioContext.close();
+    audioContext = null;
+  }
+
+  if (audioStream) {
+    audioStream.getTracks().forEach((t) => t.stop());
+    audioStream = null;
+  }
+
+  await window.electronAPI.stt.stopListening();
+}
+
+// ===== Character Click =====
+async function onCharacterClick() {
+  // Speaking → interrupt & listen
+  if (appState === 'speaking') {
+    interruptTTS();
+    isProcessing = false;
+    accumulatedTranscript = '';
+    setAppState('listening');
+    await startRecording();
+    return;
+  }
+
+  // Thinking → cancel
+  if (appState === 'thinking') {
+    isProcessing = false;
+    interruptTTS();
+    setAppState('idle');
+    showBubble('Cancelled');
+    return;
+  }
+
+  if (isProcessing) return;
+
+  // Toggle listening
+  if (appState === 'listening' || appState === 'followup') {
+    clearTimeout(executeTimer);
+    accumulatedTranscript = '';
+    await stopRecording();
+    setAppState('idle');
+    return;
+  }
+
+  accumulatedTranscript = '';
+  hideBubble();
+  setAppState('listening');
+  await startRecording();
+}
+
+characterArea.addEventListener('click', onCharacterClick);
+
+// ===== Command Handler =====
+async function handleCommand(command) {
+  if (isProcessing) return;
+  isProcessing = true;
+
+  setAppState('thinking');
+
+  // Reset audio queue for new session
+  if (audioPlayerQueue) {
+    audioPlayerQueue.reset();
+  }
+
+  try {
+    const result = await window.electronAPI.chat(command);
+    const reply = cleanMarkdown(result.message || '');
+    lastAIResponse = reply;
+
+    // If streaming TTS already handled it, we're done.
+    // Otherwise fall back to non-streaming TTS.
+    if (!audioPlayerQueue?.playing && audioPlayerQueue?.queue?.length === 0) {
+      setAppState('speaking');
+      showBubble(escapeHtml(reply));
+
+      const ttsResult = await window.electronAPI.tts.synthesize(reply);
+      if (ttsResult?.success) {
+        const audio = new Audio('data:audio/mp3;base64,' + ttsResult.audio);
+        await new Promise((resolve) => {
+          audio.onended = resolve;
+          audio.onerror = resolve;
+          audio.play().catch(resolve);
+        });
+      }
+
+      isProcessing = false;
+      setAppState('followup');
+      await startRecording();
+    }
+  } catch (error) {
+    console.error('[Command] Failed:', error);
+    showBubble('Something went wrong');
+    setAppState('idle');
+    isProcessing = false;
+  }
+}
+
+// ===== Text Input =====
+async function handleTextInput() {
+  const text = textInput.value.trim();
+  if (!text || isProcessing) return;
+  textInput.value = '';
+  showBubble(escapeHtml(text), true);
+  await handleCommand(text);
+}
+
+sendBtn.addEventListener('click', handleTextInput);
+textInput.addEventListener('keypress', (e) => {
+  if (e.key === 'Enter') handleTextInput();
+});
+
+// ===== Window Controls =====
+minimizeBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  window.electronAPI.minimizeWindow();
+});
+
+closeBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  window.electronAPI.closeWindow();
+});
+
+// ===== Mini-Orb Mode =====
+let miniOrbClickTimer = null;
+
+function initMiniMode() {
+  window.electronAPI.onMiniMode((isMini) => {
+    if (isMini) enterMiniMode();
+    else exitMiniMode();
+  });
+
+  miniOrb.addEventListener('click', (e) => {
+    if (e.target.closest('.mini-expand-btn')) return;
+
+    if (miniOrbClickTimer) {
+      clearTimeout(miniOrbClickTimer);
+      miniOrbClickTimer = null;
+      window.electronAPI.restoreWindow();
+    } else {
+      miniOrbClickTimer = setTimeout(() => {
+        miniOrbClickTimer = null;
+        onMiniOrbTap();
+      }, 250);
+    }
+  });
+
+  const expandBtn = document.getElementById('mini-expand-btn');
+  if (expandBtn) {
+    expandBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      window.electronAPI.restoreWindow();
+    });
+  }
+}
+
+async function onMiniOrbTap() {
+  if (!isMiniMode) return;
+
+  if (appState === 'speaking') {
+    interruptTTS();
+    isProcessing = false;
+    accumulatedTranscript = '';
+    setAppState('listening');
+    await startRecording();
+    return;
+  }
+
+  if (isProcessing) return;
+
+  if (appState === 'listening' || appState === 'followup') {
+    clearTimeout(executeTimer);
+    accumulatedTranscript = '';
+    await stopRecording();
+    setAppState('idle');
+    return;
+  }
+
+  accumulatedTranscript = '';
+  setAppState('listening');
+  await startRecording();
+}
+
+function setMiniOrbState(state) {
+  if (!isMiniMode) return;
+  miniOrb.classList.remove('mini-listening', 'mini-thinking', 'mini-speaking');
+  if (state === 'listening' || state === 'followup') miniOrb.classList.add('mini-listening');
+  else if (state === 'thinking') miniOrb.classList.add('mini-thinking');
+  else if (state === 'speaking') miniOrb.classList.add('mini-speaking');
+}
+
+function enterMiniMode() {
+  isMiniMode = true;
+  widgetContainer.style.display = 'none';
+  miniOrb.style.display = 'flex';
+  setMiniOrbState(appState);
+}
+
+function exitMiniMode() {
+  isMiniMode = false;
+  miniOrb.style.display = 'none';
+  miniOrb.classList.remove('mini-listening', 'mini-thinking', 'mini-speaking');
+  widgetContainer.style.display = 'flex';
+}
+
+// ===== Bubble =====
+function showBubble(content, isUser = false) {
+  clearTimeout(bubbleHideTimer);
+  speechBubble.style.display = 'block';
+  speechBubble.style.opacity = '1';
+
+  if (isUser) {
+    speechBubble.className = 'speech-bubble user-speech';
+  } else {
+    speechBubble.className = 'speech-bubble ai-response';
+  }
+  bubbleText.innerHTML = content;
+
+  bubbleHideTimer = setTimeout(() => hideBubble(), BUBBLE_AUTO_HIDE);
+}
+
+function hideBubble(delay) {
+  if (delay) {
+    clearTimeout(bubbleHideTimer);
+    bubbleHideTimer = setTimeout(() => fadeOutBubble(), delay);
+  } else {
+    fadeOutBubble();
+  }
+}
+
+function fadeOutBubble() {
+  speechBubble.style.transition = 'opacity 0.3s ease-out';
+  speechBubble.style.opacity = '0';
+  setTimeout(() => {
+    speechBubble.style.display = 'none';
+    speechBubble.style.opacity = '1';
+    speechBubble.style.transition = '';
+  }, 300);
+}
+
+// ===== Utilities =====
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function cleanMarkdown(text) {
+  if (!text) return text;
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/\*(.+?)\*/g, '$1')
+    .replace(/~~(.+?)~~/g, '$1')
+    .replace(/`(.+?)`/g, '$1');
+}
