@@ -189,16 +189,37 @@ export class OpenClawClient {
           if (msg.type === 'event' && msg.event === 'chat') {
             const payload = msg.payload || {};
 
-            if (payload.text) {
-              accumulatedText += payload.text;
-              callbacks.onText(payload.text);
-            }
-
-            if (payload.state === 'final' || payload.done === true) {
+            if (payload.state === 'delta') {
+              // payload.message.content is the full accumulated text so far
+              const newText = this.extractMessageText(payload.message);
+              if (newText && newText.length > accumulatedText.length) {
+                const delta = newText.slice(accumulatedText.length);
+                accumulatedText = newText;
+                callbacks.onText(delta);
+              }
+            } else if (payload.state === 'final') {
+              // Final state — extract final text if available
+              const finalText = this.extractMessageText(payload.message);
+              if (finalText && finalText.length > accumulatedText.length) {
+                const delta = finalText.slice(accumulatedText.length);
+                callbacks.onText(delta);
+                accumulatedText = finalText;
+              }
               this.ws?.removeListener('message', chatHandler);
               clearTimeout(timeout);
               callbacks.onDone(accumulatedText);
               resolve(accumulatedText);
+            } else if (payload.state === 'error' || payload.state === 'aborted') {
+              this.ws?.removeListener('message', chatHandler);
+              clearTimeout(timeout);
+              if (accumulatedText.length > 0) {
+                callbacks.onDone(accumulatedText);
+                resolve(accumulatedText);
+              } else {
+                const err = new Error(payload.errorMessage || `Chat ${payload.state}`);
+                callbacks.onError(err);
+                reject(err);
+              }
             }
           }
         } catch (_) {
@@ -238,6 +259,23 @@ export class OpenClawClient {
         }
       }, 30_000);
     });
+  }
+
+  /**
+   * Extract text from a gateway chat message object.
+   * message.content can be a string or an array of content blocks.
+   */
+  private extractMessageText(message: any): string {
+    if (!message) return '';
+    const content = message.content;
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+      return content
+        .filter((block: any) => block?.type === 'text' && typeof block.text === 'string')
+        .map((block: any) => block.text)
+        .join('\n');
+    }
+    return '';
   }
 
   // ---- Internal ----
