@@ -145,6 +145,18 @@ class GlassOrbCharacter {
     this.blushL.style.cssText = blushBase + 'top: 58%; left: 8%;';
     this.blushR.style.cssText = blushBase + 'top: 58%; right: 8%;';
 
+    // Mouth (visible during talking)
+    this.mouth = document.createElement('div');
+    this.mouth.style.cssText = `
+      position: absolute; z-index: 3;
+      bottom: 22%; left: 50%; transform: translateX(-50%);
+      width: 8px; height: 4px; border-radius: 0 0 4px 4px;
+      background: rgba(255,255,255,0.7);
+      box-shadow: 0 0 4px rgba(255,255,255,0.5);
+      transition: width 0.1s ease, height 0.1s ease, border-radius 0.1s ease;
+      opacity: 0; pointer-events: none;
+    `;
+
     // Particles container
     this.particles = document.createElement('div');
     this.particles.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;';
@@ -171,6 +183,7 @@ class GlassOrbCharacter {
     this.pet.appendChild(this.eyesContainer);
     this.pet.appendChild(this.blushL);
     this.pet.appendChild(this.blushR);
+    this.pet.appendChild(this.mouth);
     this.pet.appendChild(bub1);
     this.pet.appendChild(bub2);
     this.pet.appendChild(this.particles);
@@ -335,13 +348,26 @@ class GlassOrbCharacter {
     if (this.talkInterval) { clearInterval(this.talkInterval); this.talkInterval = null; }
 
     if (mood === 'talking') {
+      // Show mouth + animate
+      this.mouth.style.opacity = '1';
       let tog = false;
       this.talkInterval = setInterval(() => {
         tog = !tog;
         tog ? this._expr.talkBig() : this._expr.talking();
-      }, 250);
-    } else if (m.eyes && this._expr[m.eyes]) {
-      this._expr[m.eyes]();
+        // Mouth open/close animation
+        if (tog) {
+          this.mouth.style.width = '10px';
+          this.mouth.style.height = '6px';
+          this.mouth.style.borderRadius = '2px 2px 5px 5px';
+        } else {
+          this.mouth.style.width = '7px';
+          this.mouth.style.height = '3px';
+          this.mouth.style.borderRadius = '0 0 4px 4px';
+        }
+      }, 200);
+    } else {
+      this.mouth.style.opacity = '0';
+      if (m.eyes && this._expr[m.eyes]) this._expr[m.eyes]();
     }
 
     // Blush for happy
