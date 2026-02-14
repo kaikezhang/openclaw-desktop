@@ -8,6 +8,7 @@ let audioContext = null;
 let audioWorkletNode = null;
 let auraAnimator = null;
 let live2dManager = null;
+let characterAnimator = null;
 let audioPlayerQueue = null;
 let executeTimer = null;
 let countdownInterval = null;
@@ -55,13 +56,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     auraAnimator = new OrbAnimator(auraCanvas);
   }
 
-  // Live2D
-  const live2dCanvas = document.getElementById('live2d-canvas');
-  if (live2dCanvas && window.Live2DManager) {
-    live2dManager = new Live2DManager(live2dCanvas);
-    live2dManager.init();
-    // Load default Hiyori model
-    live2dManager.loadModel('../../assets/models/Hiyori/Hiyori.model3.json');
+  // Character display: try sprite animator first, fallback to Live2D
+  if (window.CharacterAnimator) {
+    characterAnimator = new CharacterAnimator('character-sprite-container');
+    characterAnimator.start();
+    // Hide Live2D canvas when using sprite mode
+    const l2dCanvas = document.getElementById('live2d-canvas');
+    if (l2dCanvas) l2dCanvas.style.display = 'none';
+    console.log('[App] Using CharacterAnimator (sprite mode)');
+  }
+
+  // Live2D (fallback if no sprite animator)
+  if (!characterAnimator) {
+    const live2dCanvas = document.getElementById('live2d-canvas');
+    if (live2dCanvas && window.Live2DManager) {
+      live2dManager = new Live2DManager(live2dCanvas);
+      live2dManager.init();
+      live2dManager.loadModel('../../assets/models/Hiyori/Hiyori.model3.json');
+    }
   }
 
   // Audio player queue
@@ -153,7 +165,10 @@ function setAppState(newState) {
     auraAnimator.setState(orbState);
   }
 
-  // Sync Live2D
+  // Sync character animation
+  if (characterAnimator) {
+    characterAnimator.setState(newState === 'followup' ? 'listening' : newState);
+  }
   if (live2dManager?.isLoaded) {
     live2dManager.setMotion(newState === 'followup' ? 'listening' : newState);
   }
