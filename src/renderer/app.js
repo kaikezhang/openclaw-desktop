@@ -700,3 +700,36 @@ if (closeHistoryBtn) {
     if (historyPanel) historyPanel.style.display = 'none';
   });
 }
+
+// ===== Connection Status Polling =====
+let wasConnected = false;
+
+async function checkConnectionStatus() {
+  try {
+    const status = await window.electronAPI?.getConnectionStatus?.();
+    if (!status) return;
+
+    const isConnected = status.connected;
+    if (!wasConnected && isConnected) {
+      // Just connected — revival animation
+      if (glassOrbCharacter) {
+        glassOrbCharacter.setState('idle');
+        glassOrbCharacter._spawnParticles();
+        glassOrbCharacter._spawnParticles();
+      }
+      console.log('[App] Gateway connected');
+    } else if (wasConnected && !isConnected) {
+      // Disconnected — show offline state
+      if (glassOrbCharacter) {
+        glassOrbCharacter._setMood('offline');
+      }
+      console.log('[App] Gateway disconnected');
+    }
+    wasConnected = isConnected;
+  } catch (e) { /* ignore */ }
+}
+
+// Poll every 10 seconds
+setInterval(checkConnectionStatus, 10000);
+// Initial check
+setTimeout(checkConnectionStatus, 2000);
