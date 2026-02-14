@@ -199,7 +199,7 @@ function setAppState(newState) {
 
   switch (newState) {
     case 'idle':
-      stateText.textContent = window.I18N ? window.I18N.t('tap-to-start') : 'Tap to start';
+      stateText.textContent = window.I18N ? window.I18N.t('ready') : 'Ready';
       statusHint.textContent = '';
       break;
     case 'listening':
