@@ -103,6 +103,7 @@ export class TTSEngine {
   /** Enqueue a sentence for TTS generation. */
   private enqueueSentence(sentence: string): void {
     if (this.stopped) return;
+    if (!sentence || !sentence.trim()) return;
 
     const sentenceId = ++this.sentenceCounter;
     console.log(`[TTS] Enqueue #${sentenceId}: "${sentence.substring(0, 40)}..."`);
@@ -157,6 +158,12 @@ export class TTSEngine {
   private async callMiniMaxTTS(text: string): Promise<string> {
     if (!this.config.apiKey) {
       throw new Error('MiniMax API Key not configured');
+    }
+
+    // Skip empty or whitespace-only text
+    if (!text || !text.trim()) {
+      console.log('[TTS] Skipping empty text');
+      return '';
     }
 
     console.log(`[TTS] MiniMax generating (voice: ${this.config.voiceId}): "${text.substring(0, 50)}..."`);
