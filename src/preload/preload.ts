@@ -73,6 +73,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),
     set: (patch: Record<string, any>) => ipcRenderer.invoke('settings:set', patch),
+    getLoginItem: () => ipcRenderer.invoke('settings:getLoginItem'),
+    setLoginItem: (enabled: boolean) => ipcRenderer.invoke('settings:setLoginItem', enabled),
   },
 
   // ===== Global Hotkeys =====

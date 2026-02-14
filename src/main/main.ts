@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Tray, Menu, globalShortcut, nativeImage } from 'electron';
+import { app, BrowserWindow, Tray, Menu, globalShortcut, nativeImage, LoginItemSettings } from 'electron';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 
@@ -71,6 +71,20 @@ function createWindow(): void {
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
+}
+
+// ===== Login Item (Start with System) =====
+
+function setLoginItem(enabled: boolean): void {
+  app.setLoginItemSettings({
+    openAtLogin: enabled,
+    path: process.execPath,
+    args: ['--hidden'],
+  });
+}
+
+function getLoginItem(): boolean {
+  return app.getLoginItemSettings().openAtLogin;
 }
 
 // ===== Settings Window =====
@@ -188,6 +202,8 @@ app.whenReady().then(() => {
     openclawClient,
     ttsEngine,
     sttEngine,
+    getLoginItem,
+    setLoginItem,
   });
 
   // Pre-connect to OpenClaw (non-blocking)
