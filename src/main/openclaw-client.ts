@@ -1,5 +1,12 @@
 import WebSocket from 'ws';
 import { randomUUID } from 'crypto';
+import {
+  type DeviceIdentity,
+  loadOrCreateDeviceIdentity,
+  signDevicePayload,
+  buildDeviceAuthPayload,
+  publicKeyRawBase64Url,
+} from './device-identity';
 
 export interface OpenClawConfig {
   port: number;
@@ -34,6 +41,7 @@ export class OpenClawClient {
     reject: (reason: Error) => void;
   }>();
   private config: OpenClawConfig;
+  private deviceIdentity: DeviceIdentity;
 
   // Reconnection
   private backoffMs = 1000;
@@ -49,6 +57,7 @@ export class OpenClawClient {
 
   constructor(config: OpenClawConfig) {
     this.config = config;
+    this.deviceIdentity = loadOrCreateDeviceIdentity();
   }
 
   get isConnected(): boolean {
@@ -239,52 +248,7 @@ export class OpenClawClient {
     }
   }
 
-  private sendConnect(): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-
-    const connectId = randomUUID();
-
-    // Store pending so we can handle the response
-    this.pendingRequests.set(connectId, {
-      resolve: (payload: any) => {
-        this.connected = true;
-        this.backoffMs = 1000; // Reset backoff on success
-
-        // Extract tick interval from policy
-        if (typeof payload?.policy?.tickIntervalMs === 'number') {
-          this.tickIntervalMs = payload.policy.tickIntervalMs;
-        }
-        this.lastTick = Date.now();
-        this.startTickWatch();
-
-        console.log(`[OpenClaw] Authenticated (tickInterval=${this.tickIntervalMs}ms)`);
-      },
-      reject: (err: Error) => {
-        console.error('[OpenClaw] Auth failed:', err.message);
-        this.ws?.close(1008, 'connect failed');
-      },
-    });
-
-    this.ws.send(JSON.stringify({
-      type: 'req',
-      id: connectId,
-      method: 'connect',
-      params: {
-        minProtocol: 3,
-        maxProtocol: 3,
-        client: {
-          id: 'openclaw-desktop',
-          version: '0.2.0',
-          platform: 'electron',
-          mode: 'backend',
-        },
-        role: 'operator',
-        scopes: ['operator.admin'],
-        auth: { token: this.config.token },
-        ...(this.connectNonce ? { nonce: this.connectNonce } : {}),
-      },
-    }));
-  }
+  // sendConnect removed — use sendConnectWithCallback instead
 
   private handleMessage(
     msg: any,
@@ -299,18 +263,6 @@ export class OpenClawClient {
         this.connectNonce = nonce;
       }
       console.log('[OpenClaw] Got challenge, authenticating...');
-
-      // Override the pending connect handler to also resolve the connect() promise
-      const origSendConnect = this.sendConnect.bind(this);
-      const self = this;
-
-      // We need to intercept the connect response to resolve the outer promise
-      this.sendConnect = function overriddenSendConnect() {
-        origSendConnect();
-        self.sendConnect = origSendConnect; // Restore original
-      };
-
-      // Actually: simpler approach — just send connect and handle response in generic handler
       this.sendConnectWithCallback(connectTimeout, connectResolve, _connectReject);
       return;
     }
@@ -380,6 +332,24 @@ export class OpenClawClient {
       },
     });
 
+    const role = 'operator';
+    const scopes = ['operator.admin'];
+    const signedAtMs = Date.now();
+    const nonce = this.connectNonce ?? undefined;
+    const authToken = this.config.token || undefined;
+
+    const authPayload = buildDeviceAuthPayload({
+      deviceId: this.deviceIdentity.deviceId,
+      clientId: 'gateway-client',
+      clientMode: 'backend',
+      role,
+      scopes,
+      signedAtMs,
+      token: authToken ?? null,
+      nonce,
+    });
+    const signature = signDevicePayload(this.deviceIdentity.privateKeyPem, authPayload);
+
     this.ws.send(JSON.stringify({
       type: 'req',
       id: connectId,
@@ -388,15 +358,21 @@ export class OpenClawClient {
         minProtocol: 3,
         maxProtocol: 3,
         client: {
-          id: 'openclaw-desktop',
+          id: 'gateway-client',
           version: '0.2.0',
           platform: 'electron',
           mode: 'backend',
         },
-        role: 'operator',
-        scopes: ['operator.admin'],
-        auth: { token: this.config.token },
-        ...(this.connectNonce ? { nonce: this.connectNonce } : {}),
+        role,
+        scopes,
+        auth: authToken ? { token: authToken } : undefined,
+        device: {
+          id: this.deviceIdentity.deviceId,
+          publicKey: publicKeyRawBase64Url(this.deviceIdentity.publicKeyPem),
+          signature,
+          signedAt: signedAtMs,
+          ...(nonce ? { nonce } : {}),
+        },
       },
     }));
   }
