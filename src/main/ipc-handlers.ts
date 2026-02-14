@@ -1,4 +1,4 @@
-import { ipcMain, shell, Notification, BrowserWindow } from 'electron';
+import { ipcMain, shell, BrowserWindow } from 'electron';
 import * as fs from 'fs';
 import * as os from 'os';
 import { OpenClawClient } from './openclaw-client';

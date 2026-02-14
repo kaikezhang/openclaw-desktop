@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Tray, Menu, globalShortcut, nativeImage, LoginItemSettings } from 'electron';
+import { app, BrowserWindow, Tray, Menu, globalShortcut, nativeImage } from 'electron';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 
