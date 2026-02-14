@@ -56,25 +56,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     auraAnimator = new OrbAnimator(auraCanvas);
   }
 
-  // Character display: try sprite animator first, fallback to Live2D
-  if (window.CharacterAnimator) {
-    characterAnimator = new CharacterAnimator('character-sprite-container');
-    characterAnimator.start();
-    // Hide Live2D canvas when using sprite mode
-    const l2dCanvas = document.getElementById('live2d-canvas');
-    if (l2dCanvas) l2dCanvas.style.display = 'none';
-    console.log('[App] Using CharacterAnimator (sprite mode)');
-  }
+  // Character mode: 'sprite' | 'glassorb' | 'live2d'
+  // Load saved preference, default to glassorb
+  let characterMode = 'glassorb';
+  try {
+    const settings = await window.electronAPI?.settings?.get();
+    if (settings?.characterMode) characterMode = settings.characterMode;
+  } catch (e) { /* ignore */ }
 
-  // Live2D (fallback if no sprite animator)
-  if (!characterAnimator) {
-    const live2dCanvas = document.getElementById('live2d-canvas');
-    if (live2dCanvas && window.Live2DManager) {
-      live2dManager = new Live2DManager(live2dCanvas);
-      live2dManager.init();
-      live2dManager.loadModel('../../assets/models/Hiyori/Hiyori.model3.json');
-    }
-  }
+  initCharacterMode(characterMode);
 
   // Audio player queue
   if (window.AudioPlayerQueue) {
@@ -98,6 +88,69 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   console.log('[App] Initialized');
 });
+
+// ===== Character Mode Management =====
+let glassOrbCharacter = null;
+
+function initCharacterMode(mode) {
+  // Stop all existing character renderers
+  if (characterAnimator) { characterAnimator.stop(); characterAnimator = null; }
+  if (glassOrbCharacter) { glassOrbCharacter.stop(); glassOrbCharacter = null; }
+  if (live2dManager) { live2dManager = null; }
+
+  const l2dCanvas = document.getElementById('live2d-canvas');
+  const spriteContainer = document.getElementById('character-sprite-container');
+
+  // Hide all
+  if (l2dCanvas) l2dCanvas.style.display = 'none';
+  if (spriteContainer) { spriteContainer.style.display = 'none'; spriteContainer.innerHTML = ''; }
+
+  switch (mode) {
+    case 'glassorb':
+      if (window.GlassOrbCharacter && spriteContainer) {
+        spriteContainer.style.display = 'block';
+        glassOrbCharacter = new GlassOrbCharacter('character-sprite-container');
+        glassOrbCharacter.start();
+        console.log('[App] Using GlassOrbCharacter (glass orb mode)');
+      }
+      break;
+    case 'sprite':
+      if (window.CharacterAnimator && spriteContainer) {
+        spriteContainer.style.display = 'block';
+        characterAnimator = new CharacterAnimator('character-sprite-container');
+        characterAnimator.start();
+        console.log('[App] Using CharacterAnimator (sprite mode)');
+      }
+      break;
+    case 'live2d':
+      if (l2dCanvas && window.Live2DManager) {
+        l2dCanvas.style.display = 'block';
+        live2dManager = new Live2DManager(l2dCanvas);
+        live2dManager.init();
+        live2dManager.loadModel('../../assets/models/Hiyori/Hiyori.model3.json');
+        console.log('[App] Using Live2DManager (Live2D mode)');
+      }
+      break;
+  }
+}
+
+// Cycle through character modes: glassorb → sprite → live2d → glassorb
+const CHARACTER_MODES = ['glassorb', 'sprite', 'live2d'];
+let currentCharModeIndex = 0;
+
+function cycleCharacterMode() {
+  currentCharModeIndex = (currentCharModeIndex + 1) % CHARACTER_MODES.length;
+  const newMode = CHARACTER_MODES[currentCharModeIndex];
+  initCharacterMode(newMode);
+  // Save preference
+  if (window.electronAPI?.settings?.set) {
+    window.electronAPI.settings.get().then(s => {
+      s.characterMode = newMode;
+      window.electronAPI.settings.set(s);
+    }).catch(() => {});
+  }
+  return newMode;
+}
 
 // ===== State Management =====
 function setAppState(newState) {
@@ -166,12 +219,10 @@ function setAppState(newState) {
   }
 
   // Sync character animation
-  if (characterAnimator) {
-    characterAnimator.setState(newState === 'followup' ? 'listening' : newState);
-  }
-  if (live2dManager?.isLoaded) {
-    live2dManager.setMotion(newState === 'followup' ? 'listening' : newState);
-  }
+  const charState = newState === 'followup' ? 'listening' : newState;
+  if (characterAnimator) characterAnimator.setState(charState);
+  if (glassOrbCharacter) glassOrbCharacter.setState(charState);
+  if (live2dManager?.isLoaded) live2dManager.setMotion(charState);
 
   // Sync mini-orb
   if (isMiniMode) {
@@ -622,12 +673,13 @@ function renderHistory() {
   historyMessages.scrollTop = historyMessages.scrollHeight;
 }
 
-// Mode toggle (portrait ↔ pixel)
+// Mode toggle — cycle glassorb / sprite / live2d
 const modeToggleBtn = document.getElementById('mode-toggle-btn');
-if (modeToggleBtn && characterAnimator) {
+if (modeToggleBtn) {
   modeToggleBtn.addEventListener('click', () => {
-    const newMode = characterAnimator.toggleMode();
-    modeToggleBtn.title = newMode === 'pixel' ? 'Switch to portrait mode' : 'Switch to pixel mode';
+    const newMode = cycleCharacterMode();
+    const labels = { glassorb: '🫧 Glass Orb', sprite: '🎨 Sprite', live2d: '🎭 Live2D' };
+    modeToggleBtn.title = labels[newMode] || newMode;
   });
 }
 

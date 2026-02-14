@@ -107,8 +107,16 @@
     </select>
   </div>
   <div class="field">
+    <label>Character Mode</label>
+    <select id="characterMode" style="width:100%;padding:8px 10px;border:1px solid #333;border-radius:6px;background:#16162b;color:#e0e0e0;font-size:13px;">
+      <option value="glassorb">🫧 Glass Orb (Fluid ball with eyes)</option>
+      <option value="sprite">🎨 Sprite (Wanwan portrait)</option>
+      <option value="live2d">🎭 Live2D (Hiyori model)</option>
+    </select>
+  </div>
+  <div class="field">
     <label>Live2D Model</label>
-    <select id="live2dModelPath" style="width:100%;padding:8px 10px;border:1px solid #333;border-radius:6px;background:#16162b;color:#e0e0e0;font-size:13px;">
+    <select id="live2dModelSelect" style="width:100%;padding:8px 10px;border:1px solid #333;border-radius:6px;background:#16162b;color:#e0e0e0;font-size:13px;">
       <option value="Hiyori/Hiyori.model3.json">Hiyori (Default)</option>
     </select>
   </div>
@@ -139,6 +147,7 @@
       'minimaxApiKey', 'minimaxGroupId', 'minimaxModel', 'minimaxVoiceId',
       'live2dModelPath', 'hotkeyToggleRecord', 'hotkeyToggleMini',
     ];
+    const selects = ['theme', 'characterMode'];
     const checkboxes = ['alwaysOnTop', 'startMinimized'];
 
     async function loadSettings() {
@@ -147,6 +156,10 @@
       for (const f of fields) {
         const el = document.getElementById(f);
         if (el && settings[f] !== undefined) el.value = settings[f];
+      }
+      for (const s of selects) {
+        const el = document.getElementById(s);
+        if (el && settings[s] !== undefined) el.value = settings[s];
       }
       for (const c of checkboxes) {
         const el = document.getElementById(c);
@@ -169,6 +182,9 @@
         } else {
           patch[f] = el.value;
         }
+      }
+      for (const s of selects) {
+        patch[s] = document.getElementById(s).value;
       }
       for (const c of checkboxes) {
         patch[c] = document.getElementById(c).checked;
