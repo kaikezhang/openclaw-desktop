@@ -464,6 +464,9 @@ async function handleCommand(command) {
     const reply = cleanMarkdown(result.message || '');
     lastAIResponse = reply;
 
+    // Bounce glass orb on new response
+    if (glassOrbCharacter) glassOrbCharacter.bounce();
+
     // Add AI reply to history
     if (typeof addToHistory === 'function') addToHistory('assistant', reply);
 
