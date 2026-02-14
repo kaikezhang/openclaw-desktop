@@ -69,6 +69,11 @@ contextBridge.exposeInMainWorld('electronAPI', {
     showInFolder: (filePath: string) => ipcRenderer.invoke('file:showInFolder', filePath),
   },
 
+  // ===== Image Generation =====
+  image: {
+    generateSelfie: (prompt: string) => ipcRenderer.invoke('image:generateSelfie', prompt),
+  },
+
   // ===== Settings =====
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),
