@@ -10,6 +10,7 @@ let auraAnimator = null;
 let live2dManager = null;
 let characterAnimator = null;
 let audioPlayerQueue = null;
+let streamingTTSStarted = false;
 let executeTimer = null;
 let countdownInterval = null;
 let accumulatedTranscript = '';
@@ -320,6 +321,7 @@ function initTTSListeners() {
   });
 
   window.electronAPI.tts.onFirstSentence(() => {
+    streamingTTSStarted = true;
     if (appState === 'thinking') {
       setAppState('speaking');
     }
@@ -476,6 +478,7 @@ async function handleCommand(command) {
   if (audioPlayerQueue) {
     audioPlayerQueue.reset();
   }
+  streamingTTSStarted = false;
 
   try {
     const result = await window.electronAPI.chat(command);
@@ -496,7 +499,7 @@ async function handleCommand(command) {
 
     // If streaming TTS already handled it, we're done.
     // Otherwise fall back to non-streaming TTS.
-    if (!audioPlayerQueue?.playing && audioPlayerQueue?.queue?.length === 0) {
+    if (!streamingTTSStarted && !audioPlayerQueue?.playing && audioPlayerQueue?.queue?.length === 0) {
       setAppState('speaking');
       showBubble(escapeHtml(reply));
 
