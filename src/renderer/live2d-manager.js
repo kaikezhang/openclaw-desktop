@@ -40,11 +40,22 @@ class Live2DManager {
       return;
     }
 
+    // Ensure canvas has pixel dimensions
+    if (!this.canvas.width || this.canvas.width < 10) {
+      const parent = this.canvas.parentElement;
+      if (parent) {
+        const rect = parent.getBoundingClientRect();
+        this.canvas.width = Math.round(rect.width) || 330;
+        this.canvas.height = Math.round(rect.height) || 400;
+      }
+    }
+
     this.app = new PIXI.Application({
       view: this.canvas,
       transparent: true,
       autoStart: true,
-      resizeTo: this.canvas.parentElement,
+      width: this.canvas.width,
+      height: this.canvas.height,
       antialias: true,
     });
 
