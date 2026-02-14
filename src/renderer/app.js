@@ -373,6 +373,9 @@ async function handleCommand(command) {
   if (isProcessing) return;
   isProcessing = true;
 
+  // Add user message to history
+  if (typeof addToHistory === 'function') addToHistory('user', command);
+
   setAppState('thinking');
 
   // Reset audio queue for new session
@@ -384,6 +387,9 @@ async function handleCommand(command) {
     const result = await window.electronAPI.chat(command);
     const reply = cleanMarkdown(result.message || '');
     lastAIResponse = reply;
+
+    // Add AI reply to history
+    if (typeof addToHistory === 'function') addToHistory('assistant', reply);
 
     // If streaming TTS already handled it, we're done.
     // Otherwise fall back to non-streaming TTS.
@@ -569,4 +575,42 @@ function cleanMarkdown(text) {
     .replace(/\*(.+?)\*/g, '$1')
     .replace(/~~(.+?)~~/g, '$1')
     .replace(/`(.+?)`/g, '$1');
+}
+
+// ===== Chat History =====
+const chatHistory = [];
+const historyPanel = document.getElementById('chat-history-panel');
+const historyMessages = document.getElementById('chat-history-messages');
+const historyBtn = document.getElementById('history-btn');
+const closeHistoryBtn = document.getElementById('close-history-btn');
+
+function addToHistory(role, text) {
+  chatHistory.push({ role, text, time: new Date() });
+  renderHistory();
+}
+
+function renderHistory() {
+  if (!historyMessages) return;
+  historyMessages.innerHTML = chatHistory.map(m => {
+    const cls = m.role === 'user' ? 'user' : 'assistant';
+    const time = m.time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    return `<div class="chat-msg ${cls}">${escapeHtml(m.text)}<div class="timestamp">${time}</div></div>`;
+  }).join('');
+  historyMessages.scrollTop = historyMessages.scrollHeight;
+}
+
+if (historyBtn) {
+  historyBtn.addEventListener('click', () => {
+    if (historyPanel) {
+      const isVisible = historyPanel.style.display !== 'none';
+      historyPanel.style.display = isVisible ? 'none' : 'flex';
+      if (!isVisible) renderHistory();
+    }
+  });
+}
+
+if (closeHistoryBtn) {
+  closeHistoryBtn.addEventListener('click', () => {
+    if (historyPanel) historyPanel.style.display = 'none';
+  });
 }

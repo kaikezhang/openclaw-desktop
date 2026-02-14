@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OpenClaw Desktop</title>
   <link rel="stylesheet" href="styles.css">
-  <script src="https://code.iconify.design/3/3.1.0/iconify.min.js"></script>
-  <!-- PixiJS + Live2D (loaded from CDN for simplicity) -->
-  <script src="https://cdn.jsdelivr.net/npm/pixi.js@7.3.2/dist/pixi.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display@0.4.0/dist/cubism4.min.js"></script>
+  <!-- Vendor libs (bundled locally for offline use) -->
+  <script src="vendor/iconify.min.js"></script>
+  <script src="vendor/pixi.min.js"></script>
+  <script src="vendor/cubism4.min.js"></script>
 </head>
 <body>
   <!-- Mini-orb mode -->
@@ -63,8 +63,22 @@
       </div>
     </div>
 
+    <!-- Chat history panel (hidden by default, toggle with button) -->
+    <div class="chat-history-panel" id="chat-history-panel" style="display: none;">
+      <div class="chat-history-header">
+        <span>Chat History</span>
+        <button class="tiny-btn" id="close-history-btn" title="Close">
+          <span class="iconify" data-icon="mdi:close"></span>
+        </button>
+      </div>
+      <div class="chat-history-messages" id="chat-history-messages"></div>
+    </div>
+
     <!-- Text input -->
     <div class="text-input-area">
+      <button id="history-btn" class="tiny-btn" title="Chat History">
+        <span class="iconify" data-icon="mdi:message-text-clock"></span>
+      </button>
       <input type="text" id="text-input" class="text-input" placeholder="Type a message..." />
       <button id="send-btn" class="send-btn" title="Send">
         <span class="iconify" data-icon="mdi:send"></span>
