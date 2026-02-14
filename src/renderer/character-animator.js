@@ -17,11 +17,22 @@ class CharacterAnimator {
     this.animationFrame = null;
     this.isBlinking = false;
 
-    // Expression images (paths relative to index.html)
+    // Display mode: 'portrait' (static images + CSS anim) or 'pixel' (animated GIFs)
+    this.mode = 'portrait';
+
+    // Portrait mode: static expression images
     this.expressions = {
       idle: '../../assets/character/wanwan/idle.png',
       speaking: '../../assets/character/wanwan/speaking.png',
       blink: '../../assets/character/wanwan/blink.png',
+    };
+
+    // Pixel mode: animated GIFs per state
+    this.pixelAnims = {
+      idle: '../../assets/character/wanwan/idle-anim.gif',
+      listening: '../../assets/character/wanwan/wave-anim.gif',
+      thinking: '../../assets/character/wanwan/bounce-anim.gif',
+      speaking: '../../assets/character/wanwan/dance-anim.gif',
     };
 
     // Create DOM structure
@@ -92,6 +103,14 @@ class CharacterAnimator {
     if (this.currentState === state) return;
     this.currentState = state;
 
+    if (this.mode === 'pixel') {
+      // Pixel mode: switch GIF, add cache buster to restart animation
+      const gifSrc = this.pixelAnims[state] || this.pixelAnims.idle;
+      this.imgElement.src = gifSrc + '?t=' + Date.now();
+      return;
+    }
+
+    // Portrait mode
     switch (state) {
       case 'speaking':
         this.imgElement.src = this.expressions.speaking;
@@ -108,9 +127,32 @@ class CharacterAnimator {
   }
 
   /**
+   * Toggle between portrait and pixel display modes.
+   */
+  toggleMode() {
+    this.mode = this.mode === 'portrait' ? 'pixel' : 'portrait';
+    console.log(`[CharacterAnimator] Mode: ${this.mode}`);
+
+    if (this.mode === 'pixel') {
+      // Stop CSS animations, use GIF
+      this.stop();
+      this.imgElement.style.transform = 'translateX(-50%)';
+      this.imgElement.style.imageRendering = 'pixelated';
+      this.imgElement.src = this.pixelAnims[this.currentState] || this.pixelAnims.idle;
+    } else {
+      // Resume CSS animations
+      this.imgElement.style.imageRendering = 'auto';
+      this.imgElement.src = this.expressions.idle;
+      this.start();
+    }
+    return this.mode;
+  }
+
+  /**
    * Main animation loop — breathing + head sway.
    */
   _animate() {
+    if (this.mode === 'pixel') return; // GIFs handle their own animation
     const now = performance.now();
 
     // Breathing: gentle vertical scale (1.0 to 1.008, ~4 second cycle)
@@ -134,7 +176,8 @@ class CharacterAnimator {
    * Blink: briefly swap to blink sprite then back.
    */
   _doBlink() {
-    if (this.currentState === 'speaking') return; // Don't blink while speaking
+    if (this.mode === 'pixel') return; // No blinking in pixel mode
+    if (this.currentState === 'speaking') return;
 
     this.isBlinking = true;
     const prevSrc = this.imgElement.src;

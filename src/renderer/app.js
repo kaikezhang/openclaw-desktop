@@ -622,6 +622,15 @@ function renderHistory() {
   historyMessages.scrollTop = historyMessages.scrollHeight;
 }
 
+// Mode toggle (portrait ↔ pixel)
+const modeToggleBtn = document.getElementById('mode-toggle-btn');
+if (modeToggleBtn && characterAnimator) {
+  modeToggleBtn.addEventListener('click', () => {
+    const newMode = characterAnimator.toggleMode();
+    modeToggleBtn.title = newMode === 'pixel' ? 'Switch to portrait mode' : 'Switch to pixel mode';
+  });
+}
+
 if (historyBtn) {
   historyBtn.addEventListener('click', () => {
     if (historyPanel) {
