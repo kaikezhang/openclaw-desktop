@@ -32,7 +32,7 @@ const ttsEngine = new TTSEngine({
   apiKey: process.env.MINIMAX_API_KEY || '',
   groupId: process.env.MINIMAX_GROUP_ID || '',
   model: process.env.MINIMAX_MODEL || 'speech-02-hd',
-  voiceId: process.env.MINIMAX_VOICE_ID || 'Lovely_Girl',
+  voiceId: process.env.MINIMAX_VOICE_ID || 'Chinese (Mandarin)_Warm_Girl',
 });
 
 const sttEngine = new STTEngine({
