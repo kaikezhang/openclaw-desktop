@@ -440,6 +440,10 @@ class GlassOrbCharacter {
   setState(state) {
     this.currentState = state;
     this.lastInteraction = Date.now();
+    // Wake up from sleep if any state change happens
+    if (this.currentMood === 'sleepy' && state !== 'idle') {
+      this._spawnParticles();
+    }
     switch (state) {
       case 'speaking':
         this._setMood('talking');
@@ -555,6 +559,7 @@ class GlassOrbCharacter {
     ];
 
     this._idleInterval = setInterval(() => {
+      this._checkIdleState();
       if (this.currentMood !== 'idle' || !this.mouseTracking) return;
       if (Math.random() < 0.3) {
         this.mouseTracking = false;
@@ -609,6 +614,33 @@ class GlassOrbCharacter {
       }
     } else {
       this.vizRing.style.opacity = '0';
+    }
+  }
+
+  // ===== Attention & Sleep =====
+
+  /**
+   * Bounce animation to grab attention (e.g., new message arrived).
+   */
+  bounce() {
+    this.lastInteraction = Date.now();
+    const origScale = this.targetScale;
+    this.targetScale = 1.15;
+    this._expr.surprised();
+    this._spawnParticles();
+    setTimeout(() => { this.targetScale = 0.9; }, 150);
+    setTimeout(() => { this.targetScale = 1.08; this._expr.happy(); }, 300);
+    setTimeout(() => { this.targetScale = origScale; this._applyMoodEyes(); }, 600);
+  }
+
+  /**
+   * Check idle time and auto-sleep after 3 minutes of no interaction.
+   */
+  _checkIdleState() {
+    if (this.currentMood === 'offline' || this.currentState !== 'idle') return;
+    const idleSeconds = (Date.now() - this.lastInteraction) / 1000;
+    if (idleSeconds > 180 && this.currentMood !== 'sleepy') {
+      this._setMood('sleepy');
     }
   }
 
