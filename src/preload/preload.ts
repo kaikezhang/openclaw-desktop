@@ -5,8 +5,9 @@ import { contextBridge, ipcRenderer } from 'electron';
  * All IPC communication goes through here for security.
  */
 contextBridge.exposeInMainWorld('electronAPI', {
-  // ===== OpenClaw Chat =====
+  // ===== OpenClaw Chat & Status =====
   chat: (message: string) => ipcRenderer.invoke('openclaw:chat', message),
+  getConnectionStatus: () => ipcRenderer.invoke('openclaw:status'),
 
   // ===== STT (Speech-to-Text) =====
   stt: {

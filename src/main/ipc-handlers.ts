@@ -53,6 +53,12 @@ export function registerIpcHandlers(deps: {
     }
   });
 
+  // ===== Connection Status =====
+
+  ipcMain.handle('openclaw:status', async () => {
+    return { connected: openclawClient.isConnected };
+  });
+
   // ===== STT =====
 
   ipcMain.handle('stt:startListening', async () => {
