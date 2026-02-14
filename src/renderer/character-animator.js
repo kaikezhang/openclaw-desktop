@@ -28,10 +28,11 @@ class CharacterAnimator {
     };
 
     // Pixel mode: animated GIFs per state
+    // idle=呼吸眨眼, listening=专注听(脉冲), thinking=思考(弹跳), speaking=开心说话(跳舞)
     this.pixelAnims = {
       idle: '../../assets/character/wanwan/idle-anim.gif',
-      listening: '../../assets/character/wanwan/wave-anim.gif',
-      thinking: '../../assets/character/wanwan/bounce-anim.gif',
+      listening: '../../assets/character/wanwan/idle-anim.gif',  // + CSS pulse
+      thinking: '../../assets/character/wanwan/idle-anim.gif',   // + CSS bounce
       speaking: '../../assets/character/wanwan/dance-anim.gif',
     };
 
