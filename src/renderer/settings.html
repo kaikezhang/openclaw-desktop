@@ -122,6 +122,10 @@
     <input type="checkbox" id="startMinimized">
     <label for="startMinimized" style="display:inline; text-transform:none; color:#e0e0e0;">Start minimized</label>
   </div>
+  <div class="checkbox-field">
+    <input type="checkbox" id="startWithSystem">
+    <label for="startWithSystem" style="display:inline; text-transform:none; color:#e0e0e0;">Start with system</label>
+  </div>
 
   <div class="actions">
     <button class="btn-cancel" onclick="window.close()">Cancel</button>
@@ -148,6 +152,11 @@
         const el = document.getElementById(c);
         if (el && settings[c] !== undefined) el.checked = settings[c];
       }
+      // Load login item status
+      try {
+        const login = await window.electronAPI.settings.getLoginItem();
+        document.getElementById('startWithSystem').checked = login.enabled;
+      } catch (e) { /* ignore */ }
     }
 
     document.getElementById('saveBtn').addEventListener('click', async () => {
@@ -165,6 +174,10 @@
         patch[c] = document.getElementById(c).checked;
       }
       await window.electronAPI.settings.set(patch);
+
+      // Handle login item separately
+      const startWithSystem = document.getElementById('startWithSystem').checked;
+      await window.electronAPI.settings.setLoginItem(startWithSystem);
       const status = document.getElementById('status');
       status.style.display = 'block';
       setTimeout(() => { status.style.display = 'none'; }, 2000);

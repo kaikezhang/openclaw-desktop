@@ -15,8 +15,10 @@ export function registerIpcHandlers(deps: {
   openclawClient: OpenClawClient;
   ttsEngine: TTSEngine;
   sttEngine: STTEngine;
+  getLoginItem: () => boolean;
+  setLoginItem: (enabled: boolean) => void;
 }): void {
-  const { getWindow, openclawClient, ttsEngine, sttEngine } = deps;
+  const { getWindow, openclawClient, ttsEngine, sttEngine, getLoginItem, setLoginItem } = deps;
 
   // ===== Chat =====
 
@@ -167,6 +169,15 @@ export function registerIpcHandlers(deps: {
 
   ipcMain.handle('settings:set', async (_event, patch: Partial<AppSettings>) => {
     setSettings(patch);
+    return { success: true };
+  });
+
+  ipcMain.handle('settings:getLoginItem', async () => {
+    return { enabled: getLoginItem() };
+  });
+
+  ipcMain.handle('settings:setLoginItem', async (_event, enabled: boolean) => {
+    setLoginItem(enabled);
     return { success: true };
   });
 }
