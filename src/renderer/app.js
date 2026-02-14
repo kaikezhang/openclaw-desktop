@@ -52,8 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (live2dCanvas && window.Live2DManager) {
     live2dManager = new Live2DManager(live2dCanvas);
     live2dManager.init();
-    // Attempt to load default model (user can place one in assets/models/)
-    // live2dManager.loadModel('../../assets/models/your-model/your-model.model3.json');
+    // Load default Hiyori model
+    live2dManager.loadModel('../../assets/models/Hiyori/Hiyori.model3.json');
   }
 
   // Audio player queue

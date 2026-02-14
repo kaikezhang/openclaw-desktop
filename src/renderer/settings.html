@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Settings — OpenClaw Desktop</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #e0e0e0;
+      padding: 24px;
+      font-size: 13px;
+    }
+    h1 { font-size: 18px; margin-bottom: 20px; color: #7c6fef; }
+    h2 { font-size: 14px; margin: 16px 0 8px; color: #a09cf5; border-bottom: 1px solid #2a2a4a; padding-bottom: 4px; }
+    .field { margin-bottom: 12px; }
+    label { display: block; font-size: 11px; color: #888; margin-bottom: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
+    input[type="text"], input[type="number"], input[type="password"] {
+      width: 100%; padding: 8px 10px; border: 1px solid #333; border-radius: 6px;
+      background: #16162b; color: #e0e0e0; font-size: 13px; outline: none;
+    }
+    input:focus { border-color: #7c6fef; }
+    .row { display: flex; gap: 12px; }
+    .row .field { flex: 1; }
+    .checkbox-field { display: flex; align-items: center; gap: 8px; margin: 8px 0; }
+    .checkbox-field input { width: auto; }
+    .actions { margin-top: 24px; display: flex; gap: 10px; justify-content: flex-end; }
+    button {
+      padding: 8px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px;
+    }
+    .btn-save { background: #7c6fef; color: white; }
+    .btn-save:hover { background: #6a5fd4; }
+    .btn-cancel { background: #333; color: #ccc; }
+    .btn-cancel:hover { background: #444; }
+    .status { font-size: 11px; color: #4caf50; margin-top: 8px; display: none; }
+  </style>
+</head>
+<body>
+  <h1>⚙️ Settings</h1>
+
+  <h2>OpenClaw Gateway</h2>
+  <div class="row">
+    <div class="field">
+      <label>Port</label>
+      <input type="number" id="openclawPort" value="18789">
+    </div>
+    <div class="field">
+      <label>Auth Token</label>
+      <input type="password" id="openclawToken" placeholder="Gateway token">
+    </div>
+  </div>
+
+  <h2>Speech-to-Text (Deepgram)</h2>
+  <div class="field">
+    <label>API Key</label>
+    <input type="password" id="deepgramApiKey" placeholder="Deepgram API key">
+  </div>
+
+  <h2>Text-to-Speech (MiniMax)</h2>
+  <div class="row">
+    <div class="field">
+      <label>API Key</label>
+      <input type="password" id="minimaxApiKey" placeholder="MiniMax API key">
+    </div>
+    <div class="field">
+      <label>Group ID</label>
+      <input type="text" id="minimaxGroupId" placeholder="Group ID">
+    </div>
+  </div>
+  <div class="row">
+    <div class="field">
+      <label>Model</label>
+      <input type="text" id="minimaxModel" value="speech-02-hd">
+    </div>
+    <div class="field">
+      <label>Voice ID</label>
+      <input type="text" id="minimaxVoiceId" value="Lovely_Girl">
+    </div>
+  </div>
+
+  <h2>Live2D Model</h2>
+  <div class="field">
+    <label>Model Path (relative to assets/models/)</label>
+    <input type="text" id="live2dModelPath" placeholder="Hiyori/Hiyori.model3.json">
+  </div>
+
+  <h2>Shortcuts</h2>
+  <div class="row">
+    <div class="field">
+      <label>Toggle Recording</label>
+      <input type="text" id="hotkeyToggleRecord" value="CommandOrControl+Shift+O" readonly>
+    </div>
+    <div class="field">
+      <label>Toggle Mini Mode</label>
+      <input type="text" id="hotkeyToggleMini" value="CommandOrControl+Shift+M" readonly>
+    </div>
+  </div>
+
+  <h2>Window</h2>
+  <div class="checkbox-field">
+    <input type="checkbox" id="alwaysOnTop">
+    <label for="alwaysOnTop" style="display:inline; text-transform:none; color:#e0e0e0;">Always on top</label>
+  </div>
+  <div class="checkbox-field">
+    <input type="checkbox" id="startMinimized">
+    <label for="startMinimized" style="display:inline; text-transform:none; color:#e0e0e0;">Start minimized</label>
+  </div>
+
+  <div class="actions">
+    <button class="btn-cancel" onclick="window.close()">Cancel</button>
+    <button class="btn-save" id="saveBtn">Save</button>
+  </div>
+  <div class="status" id="status">✓ Settings saved!</div>
+
+  <script>
+    const fields = [
+      'openclawPort', 'openclawToken', 'deepgramApiKey',
+      'minimaxApiKey', 'minimaxGroupId', 'minimaxModel', 'minimaxVoiceId',
+      'live2dModelPath', 'hotkeyToggleRecord', 'hotkeyToggleMini',
+    ];
+    const checkboxes = ['alwaysOnTop', 'startMinimized'];
+
+    async function loadSettings() {
+      if (!window.electronAPI?.settings) return;
+      const settings = await window.electronAPI.settings.get();
+      for (const f of fields) {
+        const el = document.getElementById(f);
+        if (el && settings[f] !== undefined) el.value = settings[f];
+      }
+      for (const c of checkboxes) {
+        const el = document.getElementById(c);
+        if (el && settings[c] !== undefined) el.checked = settings[c];
+      }
+    }
+
+    document.getElementById('saveBtn').addEventListener('click', async () => {
+      if (!window.electronAPI?.settings) return;
+      const patch = {};
+      for (const f of fields) {
+        const el = document.getElementById(f);
+        if (f === 'openclawPort') {
+          patch[f] = parseInt(el.value) || 18789;
+        } else {
+          patch[f] = el.value;
+        }
+      }
+      for (const c of checkboxes) {
+        patch[c] = document.getElementById(c).checked;
+      }
+      await window.electronAPI.settings.set(patch);
+      const status = document.getElementById('status');
+      status.style.display = 'block';
+      setTimeout(() => { status.style.display = 'none'; }, 2000);
+    });
+
+    loadSettings();
+  </script>
+</body>
+</html>

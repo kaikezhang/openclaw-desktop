@@ -19,11 +19,14 @@ class Live2DManager {
 
     // Motion group mapping: state -> motion group name
     // These are conventional names; users can configure per-model
+    // Motion group mapping: app state -> model motion group
+    // Hiyori only has Idle and TapBody, so map states to what's available
     this.motionMap = {
       idle: 'Idle',
-      listening: 'Listening',
-      thinking: 'Thinking',
-      speaking: 'Speaking',
+      listening: 'TapBody',   // Use TapBody for active states
+      thinking: 'Idle',
+      speaking: 'TapBody',
+      followup: 'Idle',
     };
   }
 
