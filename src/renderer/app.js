@@ -724,6 +724,19 @@ if (closeHistoryBtn) {
   });
 }
 
+// ===== Audio Visualization Loop =====
+function startVizLoop() {
+  function vizFrame() {
+    if (glassOrbCharacter && audioPlayerQueue) {
+      const vol = audioPlayerQueue.getVolume();
+      glassOrbCharacter.updateVisualizer(vol);
+    }
+    requestAnimationFrame(vizFrame);
+  }
+  vizFrame();
+}
+startVizLoop();
+
 // ===== Connection Status Polling =====
 let wasConnected = false;
 

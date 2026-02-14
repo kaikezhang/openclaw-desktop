@@ -161,6 +161,39 @@ class GlassOrbCharacter {
     this.particles = document.createElement('div');
     this.particles.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;';
 
+    // Audio visualizer ring (SVG)
+    this.vizRing = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    this.vizRing.setAttribute('width', '100');
+    this.vizRing.setAttribute('height', '100');
+    this.vizRing.setAttribute('viewBox', '-50 -50 100 100');
+    this.vizRing.style.cssText = `
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100px; height: 100px;
+      z-index: 0; pointer-events: none; opacity: 0;
+      transition: opacity 0.3s ease;
+    `;
+    // Create ring bars
+    this.vizBars = [];
+    const barCount = 16;
+    for (let i = 0; i < barCount; i++) {
+      const angle = (i / barCount) * Math.PI * 2 - Math.PI / 2;
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      const cx = Math.cos(angle) * 36;
+      const cy = Math.sin(angle) * 36;
+      const ex = Math.cos(angle) * 40;
+      const ey = Math.sin(angle) * 40;
+      line.setAttribute('x1', cx.toString());
+      line.setAttribute('y1', cy.toString());
+      line.setAttribute('x2', ex.toString());
+      line.setAttribute('y2', ey.toString());
+      line.setAttribute('stroke', 'rgba(255,255,255,0.6)');
+      line.setAttribute('stroke-width', '2');
+      line.setAttribute('stroke-linecap', 'round');
+      this.vizRing.appendChild(line);
+      this.vizBars.push({ line, angle, cx, cy });
+    }
+
     // Bubbles
     const bub1 = document.createElement('div');
     bub1.style.cssText = `
@@ -184,6 +217,7 @@ class GlassOrbCharacter {
     this.pet.appendChild(this.blushL);
     this.pet.appendChild(this.blushR);
     this.pet.appendChild(this.mouth);
+    this.pet.appendChild(this.vizRing);
     this.pet.appendChild(bub1);
     this.pet.appendChild(bub2);
     this.pet.appendChild(this.particles);
@@ -548,6 +582,34 @@ class GlassOrbCharacter {
         }, 1500 + Math.random() * 2000);
       }
     }, 5000);
+  }
+
+  // ===== Audio Visualization =====
+
+  /**
+   * Update visualizer ring with audio volume (0-1).
+   * Call this from the app animation loop when audio is playing.
+   */
+  updateVisualizer(volume) {
+    if (volume > 0.01) {
+      this.vizRing.style.opacity = '1';
+      for (let i = 0; i < this.vizBars.length; i++) {
+        const bar = this.vizBars[i];
+        // Each bar gets slightly different amplitude for organic feel
+        const variance = 0.5 + Math.sin(this.t * 8 + i * 0.7) * 0.5;
+        const amp = volume * variance * 12 + 4;
+        const ex = Math.cos(bar.angle) * (36 + amp);
+        const ey = Math.sin(bar.angle) * (36 + amp);
+        bar.line.setAttribute('x2', ex.toString());
+        bar.line.setAttribute('y2', ey.toString());
+        // Color based on amplitude
+        const hue = 340 + volume * 40; // pink to orange
+        const alpha = 0.4 + volume * 0.5;
+        bar.line.setAttribute('stroke', `hsla(${hue}, 80%, 75%, ${alpha})`);
+      }
+    } else {
+      this.vizRing.style.opacity = '0';
+    }
   }
 
   // ===== Click & Hover =====
