@@ -14,9 +14,9 @@ body {
 }
 
 :root {
-  --bg-primary: rgba(255, 255, 255, 0.95);
-  --bg-secondary: rgba(248, 250, 252, 0.95);
-  --bg-tertiary: rgba(241, 245, 249, 0.9);
+  --bg-primary: rgba(255, 255, 255, 1);
+  --bg-secondary: rgba(248, 250, 252, 1);
+  --bg-tertiary: rgba(241, 245, 249, 1);
   --text-primary: rgba(30, 41, 59, 0.95);
   --text-secondary: rgba(71, 85, 105, 0.8);
   --text-muted: rgba(100, 116, 139, 0.6);
@@ -582,7 +582,7 @@ body.theme-light {
   color: #333;
 }
 body.theme-light .widget-container {
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 1);
   border: 1px solid #ddd;
 }
 body.theme-light .speech-bubble {
