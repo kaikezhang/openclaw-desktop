@@ -1,51 +1,47 @@
 # OpenClaw Desktop
 
-AI voice assistant with Live2D avatar support, built on Electron.
+AI voice assistant with Live2D avatar, built on Electron + OpenClaw.
+
+![Electron](https://img.shields.io/badge/Electron-28-47848F?logo=electron) ![TypeScript](https://img.shields.io/badge/TypeScript-5.3-3178C6?logo=typescript) ![License](https://img.shields.io/badge/License-MIT-green)
 
 ## Features
 
-- **Voice conversation** — Deepgram Nova-2 STT with VAD and keep-alive connection
+- **Voice conversation** — Deepgram Nova-2 STT with VAD and keep-alive
 - **Streaming TTS** — MiniMax Speech-02-HD with sentence splitting and queued playback
-- **Live2D avatar** — PixiJS + pixi-live2d-display for Cubism 2/3/4 models
-- **OpenClaw gateway** — WebSocket client with streaming chat responses
-- **State machine** — `idle → listening → thinking → speaking → followup` cycle
-- **Mini-orb mode** — Collapse to a floating orb that still accepts voice input
-- **Aura effects** — Canvas particle/ripple animations synced to state
-- **Frameless window** — Transparent, always-on-top, draggable
+- **Live2D avatar** — PixiJS + pixi-live2d-display (Cubism 2/3/4), Hiyori bundled as default
+- **OpenClaw gateway** — WebSocket client with nonce auth, tick keepalive, auto-reconnect
+- **State machine** — `idle → listening → thinking → speaking → followup`
+- **Mini-orb mode** — Collapse to floating orb, still accepts voice input
+- **System tray** — Show/hide, mini mode, quit
+- **Global hotkeys** — `Ctrl+Shift+O` toggle recording, `Ctrl+Shift+M` toggle mini
+- **Settings panel** — Dark-themed UI for all configuration
+- **Cross-platform packaging** — electron-builder for macOS, Windows, Linux
 
 ## Architecture
 
 ```
 src/
-├── main/                    # Electron main process (TypeScript)
-│   ├── main.ts              # App entry, window management
-│   ├── ipc-handlers.ts      # All IPC handlers
-│   ├── openclaw-client.ts   # OpenClaw WebSocket gateway client
-│   ├── tts-engine.ts        # MiniMax TTS with sentence queue
-│   └── stt-engine.ts        # Deepgram STT engine
-├── renderer/                # Frontend (vanilla HTML/CSS/JS)
-│   ├── index.html
+├── main/                      # Electron main process (TypeScript)
+│   ├── main.ts                # App entry, window, tray, hotkeys
+│   ├── ipc-handlers.ts        # All IPC handlers (chat, STT, TTS, settings)
+│   ├── openclaw-client.ts     # OpenClaw WebSocket gateway client
+│   ├── tts-engine.ts          # MiniMax TTS with sentence queue
+│   ├── stt-engine.ts          # Deepgram STT engine
+│   └── settings-store.ts      # JSON-based settings persistence
+├── renderer/                  # Frontend (vanilla HTML/CSS/JS)
+│   ├── index.html             # Main window
+│   ├── settings.html          # Settings panel
 │   ├── styles.css
-│   ├── app.js               # UI state machine & logic
-│   ├── live2d-manager.js    # Live2D model loading & animation
-│   ├── audio-player.js      # Audio playback queue
-│   ├── audio-processor.js   # AudioWorklet for mic capture
-│   └── orb.js               # Aura/particle canvas effects
+│   ├── app.js                 # UI state machine & logic
+│   ├── live2d-manager.js      # Live2D model loading & animation
+│   ├── audio-player.js        # Audio playback queue
+│   ├── audio-processor.js     # AudioWorklet for mic capture
+│   └── orb.js                 # Aura/particle canvas effects
 └── preload/
-    └── preload.ts           # contextBridge API
+    └── preload.ts             # contextBridge API
 ```
 
-TypeScript files in `src/main/` and `src/preload/` compile to `dist/`.
-Renderer files are served directly from `src/renderer/`.
-
-## Prerequisites
-
-- Node.js 18+
-- An [OpenClaw](https://github.com/anthropics/openclaw) gateway running locally
-- A [Deepgram](https://console.deepgram.com/) API key (for STT)
-- A [MiniMax](https://www.minimaxi.com/) API key + Group ID (for TTS)
-
-## Setup
+## Quick Start
 
 ```bash
 # Install dependencies
@@ -66,67 +62,63 @@ npm run dev:build
 
 # In another terminal, start Electron with DevTools
 npm run dev:electron
+
+# Lint & format
+npm run lint
+npm run format
 ```
 
-## Scripts
+## Packaging
 
-| Command | Description |
-|---|---|
-| `npm run build` | Compile TypeScript to `dist/` |
-| `npm start` | Build + launch Electron |
-| `npm run dev` | Watch + launch (parallel) |
-| `npm run dev:build` | TypeScript watch mode only |
-| `npm run dev:electron` | Launch Electron with `--dev` flag |
-| `npm run clean` | Remove `dist/` |
+```bash
+# Build for current platform
+npm run dist
+
+# Platform-specific
+npm run dist:mac     # → release/*.dmg, *.zip
+npm run dist:win     # → release/*.exe
+npm run dist:linux   # → release/*.AppImage, *.deb
+```
 
 ## Environment Variables
 
 | Variable | Description |
 |---|---|
-| `OPENCLAW_PORT` | OpenClaw gateway port (default: `18789`) |
+| `OPENCLAW_PORT` | Gateway port (default: `18789`) |
 | `OPENCLAW_TOKEN` | Auth token for the gateway |
-| `DEEPGRAM_API_KEY` | Deepgram API key for speech-to-text |
-| `MINIMAX_API_KEY` | MiniMax API key for text-to-speech |
+| `DEEPGRAM_API_KEY` | Deepgram API key (STT) |
+| `MINIMAX_API_KEY` | MiniMax API key (TTS) |
 | `MINIMAX_GROUP_ID` | MiniMax Group ID |
-| `MINIMAX_MODEL` | TTS model name (default: `speech-02-hd`) |
+| `MINIMAX_MODEL` | TTS model (default: `speech-02-hd`) |
 | `MINIMAX_VOICE_ID` | Voice ID (default: `Lovely_Girl`) |
 
-## Adding a Live2D Model
+Settings can also be configured via the in-app settings panel (persisted in userData).
 
-1. Place your model files in `assets/models/your-model/`
-   - Typically includes: `.model3.json`, `.moc3`, textures, motions
-2. In `src/renderer/app.js`, uncomment and update the `loadModel` line:
-   ```js
-   live2dManager.loadModel('../../assets/models/your-model/your-model.model3.json');
-   ```
-3. Restart the app
+## Live2D Model
 
-### Motion groups
+**Hiyori** (by Live2D Inc.) is bundled as the default character.
 
-The Live2D manager maps app states to motion group names:
+To use a custom model:
+1. Place model files in `assets/models/your-model/`
+2. Update the model path in Settings or `src/renderer/app.js`
 
-| State | Motion Group |
+### Motion Mapping
+
+| App State | Motion Group |
 |---|---|
 | idle | `Idle` |
-| listening | `Listening` |
-| thinking | `Thinking` |
-| speaking | `Speaking` |
+| listening | `TapBody` |
+| thinking | `Idle` |
+| speaking | `TapBody` |
 
-If your model uses different motion group names, update `live2d-manager.js`'s `motionMap`.
+## Global Shortcuts
 
-When no Live2D model is loaded, the app shows the aura orb animation as a fallback.
+| Shortcut | Action |
+|---|---|
+| `Ctrl+Shift+O` / `Cmd+Shift+O` | Toggle recording |
+| `Ctrl+Shift+M` / `Cmd+Shift+M` | Toggle mini mode |
 
-## OpenClaw WebSocket Protocol
+## Licenses
 
-The client follows this flow:
-
-1. **Connect** to `ws://localhost:{port}`
-2. Receive `connect.challenge` event
-3. Send `connect` request with auth token
-4. Send `chat.send` requests with `sessionKey` and `idempotencyKey`
-5. Receive streamed `chat` events with `{ text }` payloads
-6. Stream ends with `{ state: 'final' }` or `{ done: true }`
-
-## License
-
-MIT
+- App: MIT
+- Hiyori model: [Live2D Free Material License](https://www.live2d.com/eula/live2d-sample-model-terms_en.html)
