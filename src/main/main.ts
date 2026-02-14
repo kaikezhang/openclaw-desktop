@@ -8,6 +8,7 @@ import { OpenClawClient } from './openclaw-client';
 import { TTSEngine } from './tts-engine';
 import { STTEngine } from './stt-engine';
 import { registerIpcHandlers } from './ipc-handlers';
+import { ImageGenEngine } from './image-gen';
 
 // Suppress EPIPE errors when running in background
 process.stdout.on('error', (err: NodeJS.ErrnoException) => {
@@ -35,6 +36,10 @@ const ttsEngine = new TTSEngine({
 
 const sttEngine = new STTEngine({
   apiKey: process.env.DEEPGRAM_API_KEY || '',
+});
+
+const imageGenEngine = new ImageGenEngine({
+  falKey: process.env.FAL_KEY || '',
 });
 
 // ===== Window & Tray =====
@@ -202,6 +207,7 @@ app.whenReady().then(() => {
     openclawClient,
     ttsEngine,
     sttEngine,
+    imageGenEngine,
     getLoginItem,
     setLoginItem,
   });

@@ -4,6 +4,7 @@ import * as os from 'os';
 import { OpenClawClient } from './openclaw-client';
 import { TTSEngine } from './tts-engine';
 import { STTEngine } from './stt-engine';
+import { ImageGenEngine } from './image-gen';
 import { getSettings, setSettings, type AppSettings } from './settings-store';
 
 /**
@@ -15,10 +16,11 @@ export function registerIpcHandlers(deps: {
   openclawClient: OpenClawClient;
   ttsEngine: TTSEngine;
   sttEngine: STTEngine;
+  imageGenEngine: ImageGenEngine;
   getLoginItem: () => boolean;
   setLoginItem: (enabled: boolean) => void;
 }): void {
-  const { getWindow, openclawClient, ttsEngine, sttEngine, getLoginItem, setLoginItem } = deps;
+  const { getWindow, openclawClient, ttsEngine, sttEngine, imageGenEngine, getLoginItem, setLoginItem } = deps;
 
   // ===== Chat =====
 
@@ -156,6 +158,20 @@ export function registerIpcHandlers(deps: {
 
       shell.showItemInFolder(expandedPath);
       return { success: true };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  });
+
+  // ===== Image Generation =====
+
+  ipcMain.handle('image:generateSelfie', async (_event, prompt: string) => {
+    try {
+      const imagePath = await imageGenEngine.generateSelfie({ prompt });
+      if (imagePath) {
+        return { success: true, path: imagePath };
+      }
+      return { success: false, error: 'No image generated (check FAL_KEY)' };
     } catch (error: any) {
       return { success: false, error: error.message };
     }

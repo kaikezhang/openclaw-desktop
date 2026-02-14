@@ -3,6 +3,9 @@
   "version": "0.2.0",
   "description": "OpenClaw Desktop Assistant — AI voice assistant with Live2D avatar",
   "main": "dist/main/main.js",
+  "bin": {
+    "openclaw-desktop": "./bin/cli.js"
+  },
   "scripts": {
     "build": "tsc",
     "start": "npm run build && electron .",
