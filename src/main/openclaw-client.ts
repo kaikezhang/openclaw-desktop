@@ -101,19 +101,26 @@ export class OpenClawClient {
     return this.connected && this.ws?.readyState === WebSocket.OPEN;
   }
 
+  // Guard against concurrent connect calls
+  private connectPromise: Promise<void> | null = null;
+
   /** Connect and authenticate with the OpenClaw gateway. */
   connect(): Promise<void> {
     if (this.isConnected) return Promise.resolve();
+    if (this.connectPromise) return this.connectPromise;
     this.closed = false;
 
-    return new Promise((resolve, reject) => {
+    this.connectPromise = new Promise<void>((resolve, reject) => {
       const url = `ws://localhost:${this.config.port}`;
       console.log(`[OpenClaw] Connecting to ${url}...`);
 
       this.ws = new WebSocket(url, { maxPayload: 25 * 1024 * 1024 });
       this.connectNonce = null;
 
+      const clearGuard = () => { this.connectPromise = null; };
+
       const timeout = setTimeout(() => {
+        clearGuard();
         reject(new Error('OpenClaw connection timeout'));
         this.ws?.close();
       }, 30_000);
@@ -130,11 +137,13 @@ export class OpenClawClient {
           this.handleMessage(msg, timeout, () => {
             if (!connectResolved) {
               connectResolved = true;
+              clearGuard();
               resolve();
             }
           }, (err) => {
             if (!connectResolved) {
               connectResolved = true;
+              clearGuard();
               reject(err);
             }
           });
@@ -157,6 +166,7 @@ export class OpenClawClient {
 
         if (!connectResolved) {
           connectResolved = true;
+          clearGuard();
           reject(new Error(`Connection closed (${code}): ${reasonText}`));
         }
 
@@ -171,6 +181,7 @@ export class OpenClawClient {
   /** Disconnect from the gateway. */
   disconnect(): void {
     this.closed = true;
+    this.connectPromise = null;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
