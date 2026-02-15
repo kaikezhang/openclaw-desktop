@@ -212,7 +212,77 @@ export function registerIpcHandlers(deps: {
     return { success: true };
   });
 
-  // ===== Outfit Loading =====
+  // ===== Outfit Request (search wardrobe or generate) =====
+  ipcMain.handle('outfit:request', async (_event, description: string) => {
+    try {
+      const { listOutfits, getOutfit, setCurrentOutfit } = await import('./wardrobe');
+      const outfits = listOutfits();
+
+      // Normalize description to name
+      const name = description.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '');
+
+      // Check if we have it in wardrobe (exact match or fuzzy)
+      const match = outfits.find(o =>
+        o.name === name ||
+        o.description.toLowerCase().includes(description.toLowerCase()) ||
+        description.toLowerCase().includes(o.name)
+      );
+
+      if (match) {
+        // Found in wardrobe — load immediately
+        const sprites = getOutfit(match.name);
+        if (sprites) {
+          setCurrentOutfit(match.name);
+          const win = BrowserWindow.getAllWindows()[0];
+          win?.webContents.send('outfit:change', { status: 'ready', outfit: match.name, sprites });
+          return { success: true, cached: true, outfit: match.name };
+        }
+      }
+
+      // Not in wardrobe — generate in background
+      const win = BrowserWindow.getAllWindows()[0];
+      win?.webContents.send('outfit:change', { status: 'loading', outfit: name });
+
+      // Run generate-outfit.py asynchronously
+      const { spawn } = require('child_process');
+      const path = require('path');
+      const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'generate-outfit.py');
+
+      console.log(`[Outfit] Generating: "${description}" as "${name}"...`);
+
+      const proc = spawn('uv', ['run', scriptPath, '--outfit', description, '--name', name], {
+        env: { ...process.env, PYTHONUNBUFFERED: '1' },
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+
+      let output = '';
+      proc.stdout?.on('data', (d: Buffer) => { output += d.toString(); console.log('[Outfit]', d.toString().trim()); });
+      proc.stderr?.on('data', (d: Buffer) => { console.error('[Outfit ERR]', d.toString().trim()); });
+
+      proc.on('close', (code: number) => {
+        if (code === 0) {
+          const sprites = getOutfit(name);
+          if (sprites) {
+            setCurrentOutfit(name);
+            win?.webContents.send('outfit:change', { status: 'ready', outfit: name, sprites });
+            console.log(`[Outfit] Done: ${name}`);
+          } else {
+            win?.webContents.send('outfit:change', { status: 'error', outfit: name, error: 'Generation succeeded but sprites not found' });
+          }
+        } else {
+          win?.webContents.send('outfit:change', { status: 'error', outfit: name, error: `Generation failed (code ${code})` });
+          console.error(`[Outfit] Failed: ${name}, code=${code}`);
+        }
+      });
+
+      return { success: true, cached: false, generating: true, outfit: name };
+    } catch (e: any) {
+      console.error('[Outfit] Request error:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
+  // ===== Outfit Loading (from wardrobe) =====
   ipcMain.handle('outfit:load', async (_event, name: string) => {
     try {
       const { getOutfit, setCurrentOutfit } = await import('./wardrobe');

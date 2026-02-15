@@ -314,13 +314,9 @@ async function handleCommand(command) {
     const outfitRequest = detectOutfitRequest(command);
     if (outfitRequest) {
       console.log('[App] Outfit request detected:', outfitRequest);
-      // Try loading from wardrobe immediately
-      window.electronAPI?.loadOutfit?.(outfitRequest).then((res) => {
-        if (res?.success) {
-          console.log('[App] Outfit loaded from wardrobe:', outfitRequest);
-        } else {
-          console.log('[App] Outfit not in wardrobe, AI will handle:', outfitRequest);
-        }
+      // Try wardrobe first, then generate if not found
+      window.electronAPI?.requestOutfit?.(outfitRequest).then((res) => {
+        console.log('[App] Outfit request result:', res);
       });
     }
 
@@ -556,21 +552,20 @@ function fadeOutBubble() {
 
 // ===== Outfit Detection =====
 function detectOutfitRequest(text) {
-  // Map Chinese clothing keywords to outfit names in wardrobe
-  const outfitMap = {
-    '旗袍': 'red-qipao',
-    'qipao': 'red-qipao',
-    '红裙': 'red-qipao',
-  };
-  const lower = text.toLowerCase();
-  for (const [keyword, name] of Object.entries(outfitMap)) {
-    if (lower.includes(keyword)) return name;
-  }
-  // Generic outfit change detection — return the raw request for server-side generation
-  const changePatterns = [/穿(.{1,10})/, /换(.{1,10})(衣服|装|服)/, /outfit.*?(\w+)/i];
-  for (const p of changePatterns) {
+  // Detect outfit change intent — returns the outfit description or null
+  const patterns = [
+    /穿(.{1,20}?)(?:吧|呗|看看|的样子|$)/,
+    /换[上成]?(.{1,20}?)(?:吧|呗|看看|$)/,
+    /(?:想看你|给我)穿(.{1,20})/,
+    /wear\s+(.{1,30})/i,
+    /change.*?(?:to|into)\s+(.{1,30})/i,
+  ];
+  for (const p of patterns) {
     const m = text.match(p);
-    if (m) return m[1].trim().replace(/\s+/g, '-').toLowerCase();
+    if (m) {
+      const desc = m[1].trim();
+      if (desc.length > 0 && desc.length < 30) return desc;
+    }
   }
   return null;
 }
