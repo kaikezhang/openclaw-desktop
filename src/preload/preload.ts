@@ -47,7 +47,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ===== Image Generation =====
   image: {
-    generateSelfie: (prompt: string) => ipcRenderer.invoke('image:generateSelfie', prompt),
+    generateSelfie: (promptOrOpts: string | { prompt: string; outfitDescription?: string }) => ipcRenderer.invoke('image:generateSelfie', promptOrOpts),
   },
 
   // ===== Settings =====

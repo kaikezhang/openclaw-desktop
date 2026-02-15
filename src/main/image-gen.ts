@@ -9,9 +9,36 @@ export interface ImageGenConfig {
 
 export interface SelfieOptions {
   prompt: string;
+  outfitDescription?: string;
   referenceImageUrl?: string;
   width?: number;
   height?: number;
+}
+
+/**
+ * Auto-match a scene/background based on outfit description.
+ */
+function matchScene(outfit: string): string {
+  const scenes: Array<{ keywords: string[]; scene: string }> = [
+    { keywords: ['泳', '比基尼', 'bikini', 'swimsuit', '沙滩'], scene: 'on a sunny tropical beach with turquoise ocean waves, palm trees, golden sand' },
+    { keywords: ['运动', '篮球', '棒球', 'sport', 'jersey', 'basketball'], scene: 'on an outdoor basketball court at golden hour, dynamic sporty atmosphere' },
+    { keywords: ['和服', '旗袍', 'kimono', 'qipao', 'cheongsam', '汉服'], scene: 'in a traditional Chinese garden with cherry blossoms, red lanterns, moonlight' },
+    { keywords: ['水手', 'sailor', 'JK', '制服', '校服', 'uniform', '学'], scene: 'at a Japanese high school rooftop during cherry blossom season, soft spring breeze' },
+    { keywords: ['睡衣', 'pajama', '居家'], scene: 'in a cozy bedroom with fairy lights, plush pillows, warm golden lamp light' },
+    { keywords: ['海绵宝宝', 'spongebob', '卡通', 'cartoon', '可爱'], scene: 'in a colorful candy-themed wonderland with pastel buildings and floating bubbles' },
+    { keywords: ['西装', 'suit', '正装', 'formal', '职业'], scene: 'in a sleek modern office with city skyline view through floor-to-ceiling windows at sunset' },
+    { keywords: ['朋克', 'punk', '摇滚', 'rock', '哥特', 'gothic'], scene: 'in a neon-lit cyberpunk alley with graffiti walls and rain-slicked streets' },
+    { keywords: ['仙女', '公主', 'princess', 'fairy', '礼服', 'dress', 'gown'], scene: 'in an enchanted forest with glowing fireflies, crystal clear stream, magical twilight' },
+    { keywords: ['冬', '雪', 'winter', '羽绒', '毛衣', 'sweater'], scene: 'in a snowy winter wonderland with pine trees, soft snowfall, warm cabin in background' },
+    { keywords: ['夏', '短裤', 'summer', '背心'], scene: 'at a vibrant summer festival with colorful banners, ice cream stands, blue sky' },
+  ];
+
+  const lc = outfit.toLowerCase();
+  for (const s of scenes) {
+    if (s.keywords.some(k => lc.includes(k))) return s.scene;
+  }
+  // Default scene
+  return 'in a stylish modern room with soft natural lighting, aesthetic interior design';
 }
 
 /**
@@ -48,8 +75,16 @@ export class ImageGenEngine {
 
     const refUrl = options.referenceImageUrl || this.referenceUrl;
 
+    // Build outfit-aware prompt with auto-matched scene
+    let finalPrompt = options.prompt;
+    if (options.outfitDescription) {
+      const scene = matchScene(options.outfitDescription);
+      finalPrompt = `anime girl with long black hair and white cat ear headband, wearing ${options.outfitDescription}, ${scene}. Beautiful detailed anime illustration, high quality, vibrant colors, consistent character design.`;
+      console.log(`[ImageGen] Auto-matched scene for "${options.outfitDescription}": ${scene}`);
+    }
+
     const body: any = {
-      prompt: options.prompt,
+      prompt: finalPrompt,
       image_size: {
         width: options.width || 512,
         height: options.height || 512,

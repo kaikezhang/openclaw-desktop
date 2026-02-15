@@ -158,9 +158,10 @@ export function registerIpcHandlers(deps: {
 
   // ===== Image Generation =====
 
-  ipcMain.handle('image:generateSelfie', async (_event, prompt: string) => {
+  ipcMain.handle('image:generateSelfie', async (_event, promptOrOpts: string | { prompt: string; outfitDescription?: string }) => {
     try {
-      const imagePath = await imageGenEngine.generateSelfie({ prompt });
+      const opts = typeof promptOrOpts === 'string' ? { prompt: promptOrOpts } : promptOrOpts;
+      const imagePath = await imageGenEngine.generateSelfie(opts);
       if (imagePath) {
         return { success: true, path: imagePath };
       }
@@ -257,7 +258,7 @@ export function registerIpcHandlers(deps: {
         if (sprites) {
           setCurrentOutfit(match.name);
           const win = BrowserWindow.getAllWindows()[0];
-          win?.webContents.send('outfit:change', { status: 'ready', outfit: match.name, sprites });
+          win?.webContents.send('outfit:change', { status: 'ready', outfit: match.name, sprites, description: match.description });
           return { success: true, cached: true, outfit: match.name };
         }
       }
@@ -322,7 +323,7 @@ export function registerIpcHandlers(deps: {
             } catch {}
 
             setCurrentOutfit(genName);
-            win?.webContents.send('outfit:change', { status: 'ready', outfit: genName, sprites });
+            win?.webContents.send('outfit:change', { status: 'ready', outfit: genName, sprites, description: description });
             console.log(`[Outfit] Done: ${name}`);
           } catch (fetchErr: any) {
             console.error(`[Outfit] Fetch error:`, fetchErr.message);
@@ -366,13 +367,16 @@ export function registerIpcHandlers(deps: {
   // ===== Outfit Loading (from wardrobe) =====
   ipcMain.handle('outfit:load', async (_event, name: string) => {
     try {
-      const { getOutfit, setCurrentOutfit } = await import('./wardrobe');
+      const { getOutfit, setCurrentOutfit, listOutfits } = await import('./wardrobe');
       const sprites = getOutfit(name);
       if (!sprites) {
         console.warn(`[IPC] Outfit not found: ${name}`);
         return { success: false, error: 'Outfit not found' };
       }
       setCurrentOutfit(name);
+      // Get description from metadata
+      const allOutfits = listOutfits();
+      const meta = allOutfits.find(o => o.name === name);
       // Send to renderer
       const win = BrowserWindow.getAllWindows()[0];
       if (win) {
@@ -380,6 +384,7 @@ export function registerIpcHandlers(deps: {
           status: 'ready',
           outfit: name,
           sprites,
+          description: meta?.description || name,
         });
       }
       return { success: true };
