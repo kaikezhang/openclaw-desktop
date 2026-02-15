@@ -364,10 +364,16 @@ async function handleCommand(command) {
     const outfitRequest = detectOutfitRequest(command);
     if (outfitRequest) {
       console.log('[App] Outfit request detected:', outfitRequest);
+
+      // Instant voice feedback before generation starts
+      const loadingMsg = `好的～晚晚这就去换${outfitRequest}，稍等一下哦～`;
+      setAppState('speaking');
+      showBubble(escapeHtml(loadingMsg));
+      await playTTSForReply(loadingMsg);
+
       const res = await window.electronAPI?.requestOutfit?.(outfitRequest);
       console.log('[App] Outfit request result:', res);
       if (res?.cached) {
-        // Outfit found in wardrobe — still chat but skip selfie (notifyChanged handles it)
         outfitGenerating = false;
       }
       if (res && !res.cached) {
