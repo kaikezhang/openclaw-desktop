@@ -47,8 +47,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Character mode: 'sprite' | 'glassorb' | 'live2d'
-  // Load saved preference, default to glassorb
-  let characterMode = 'glassorb';
+  // Load saved preference, default to sprite
+  let characterMode = 'sprite';
   try {
     const settings = await window.electronAPI?.settings?.get();
     if (settings?.characterMode) characterMode = settings.characterMode;
