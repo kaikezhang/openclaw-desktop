@@ -10,6 +10,7 @@ import { registerIpcHandlers } from './ipc-handlers';
 import { ImageGenEngine } from './image-gen';
 import { initAutoUpdater } from './auto-updater';
 import { getSettings } from './settings-store';
+import { getOutfit, setCurrentOutfit } from './wardrobe';
 
 // Suppress EPIPE errors when running in background
 process.stdout.on('error', (err: NodeJS.ErrnoException) => {
@@ -26,6 +27,32 @@ process.stderr.on('error', (err: NodeJS.ErrnoException) => {
 const openclawClient = new OpenClawClient({
   port: parseInt(process.env.OPENCLAW_PORT || '18789', 10),
   token: process.env.OPENCLAW_TOKEN || '',
+  onOutfitChange: (event) => {
+    console.log(`[App] Outfit change event: ${event.status} (${event.outfit})`);
+
+    if (event.status === 'ready' && event.outfit) {
+      // Try loading from wardrobe if sprites not in the event
+      let sprites = event.sprites;
+      if (!sprites) {
+        sprites = getOutfit(event.outfit) || undefined;
+      }
+      if (sprites) {
+        setCurrentOutfit(event.outfit);
+      }
+      mainWindow?.webContents.send('outfit:change', {
+        status: 'ready',
+        outfit: event.outfit,
+        sprites,
+      });
+    } else {
+      // Forward loading/error states
+      mainWindow?.webContents.send('outfit:change', {
+        status: event.status,
+        outfit: event.outfit,
+        error: event.error,
+      });
+    }
+  },
 });
 
 const ttsEngine = new TTSEngine({

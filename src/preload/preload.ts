@@ -61,6 +61,15 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // ===== Notifications =====
   notify: (title: string, body: string) => ipcRenderer.invoke('notify', { title, body }),
 
+  // ===== Outfit Change =====
+  onOutfitChange: (cb: (data: {
+    status: 'loading' | 'ready' | 'error';
+    outfit: string;
+    sprites?: { idle: string; blink: string; speaking: string };
+    error?: string;
+  }) => void) =>
+    ipcRenderer.on('outfit:change', (_e, data) => cb(data)),
+
   // ===== Global Hotkeys =====
   onToggleMini: (cb: () => void) =>
     ipcRenderer.on('hotkey:toggleMini', () => cb()),

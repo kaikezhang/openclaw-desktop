@@ -8,10 +8,23 @@ import {
   publicKeyRawBase64Url,
 } from './device-identity';
 
+export interface OutfitChangeEvent {
+  type: 'outfit_change';
+  status: 'loading' | 'ready' | 'error';
+  outfit: string;
+  sprites?: {
+    idle: string;   // base64 PNG
+    blink: string;  // base64 PNG
+    speaking: string; // base64 PNG
+  };
+  error?: string;
+}
+
 export interface OpenClawConfig {
   port: number;
   token: string;
   onEvent?: (event: any) => void;
+  onOutfitChange?: (event: OutfitChangeEvent) => void;
 }
 
 export interface ChatStreamCallbacks {
@@ -367,6 +380,13 @@ export class OpenClawClient {
         console.warn(`[OpenClaw] Event gap: expected seq ${this.lastSeq + 1}, got ${msg.seq}`);
       }
       this.lastSeq = msg.seq;
+    }
+
+    // Handle outfit_change events
+    if (msg.type === 'event' && msg.event === 'outfit_change') {
+      const payload = msg.payload as OutfitChangeEvent;
+      console.log(`[OpenClaw] Outfit change: ${payload.status} (${payload.outfit})`);
+      this.config.onOutfitChange?.(payload);
     }
 
     // Forward all events to callback
