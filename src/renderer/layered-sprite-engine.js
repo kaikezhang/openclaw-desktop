@@ -138,6 +138,14 @@ class LayeredSpriteEngine {
 
     this._currentSprite = 'A'; // which one is visible
 
+    // Preload all sprite images to avoid flicker on first swap
+    this._preloaded = {};
+    Object.entries(this._assets).forEach(([key, file]) => {
+      const img = new Image();
+      img.src = `${this._basePath}/${file}`;
+      this._preloaded[key] = img;
+    });
+
     // Mouse tracking
     this.container.addEventListener('mousemove', (e) => {
       const rect = this.container.getBoundingClientRect();
@@ -282,17 +290,26 @@ class LayeredSpriteEngine {
 
   _setExpression(expr) {
     const src = `${this._basePath}/${this._assets[expr] || this._assets.idle}`;
-    // Crossfade: set the hidden sprite to new src, then swap opacity
+    const isBlink = expr === 'blink' || this._isBlinking;
+    const swap = (target, old, label) => {
+      // For blink: instant swap (no transition, blink is too fast for crossfade)
+      if (isBlink) {
+        target.style.transition = 'none';
+        old.style.transition = 'none';
+      } else {
+        target.style.transition = 'opacity 0.3s ease';
+        old.style.transition = 'opacity 0.3s ease';
+      }
+      target.style.opacity = '1';
+      old.style.opacity = '0';
+      this._currentSprite = label;
+    };
     if (this._currentSprite === 'A') {
       this._spriteB.src = src;
-      this._spriteB.style.opacity = '1';
-      this._spriteA.style.opacity = '0';
-      this._currentSprite = 'B';
+      swap(this._spriteB, this._spriteA, 'B');
     } else {
       this._spriteA.src = src;
-      this._spriteA.style.opacity = '1';
-      this._spriteB.style.opacity = '0';
-      this._currentSprite = 'A';
+      swap(this._spriteA, this._spriteB, 'A');
     }
   }
 
