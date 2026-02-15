@@ -387,13 +387,22 @@ async function handleCommand(command) {
     let reply = cleanMarkdown(result.message || '');
     lastAIResponse = reply;
 
-    // Also check AI reply for __OUTFIT:name__ trigger
+    // Check AI reply for __OUTFIT:name__ trigger
     const outfitMatch = reply.match(/__OUTFIT:([a-zA-Z0-9_-]+)__/);
     if (outfitMatch) {
       const outfitName = outfitMatch[1];
       reply = reply.replace(/__OUTFIT:[a-zA-Z0-9_-]+__/g, '').trim();
       lastAIResponse = reply;
       window.electronAPI?.loadOutfit?.(outfitName);
+    }
+
+    // Also detect outfit intent in AI reply (e.g. "给你换个丝绸吊带睡裙")
+    if (!outfitMatch && !outfitRequest) {
+      const aiOutfit = detectOutfitInReply(reply);
+      if (aiOutfit) {
+        console.log('[App] AI suggested outfit change:', aiOutfit);
+        window.electronAPI?.requestOutfit?.(aiOutfit);
+      }
     }
 
     // Bounce character on new response
@@ -644,6 +653,23 @@ function detectOutfitRequest(text) {
     if (m) {
       const desc = m[1].replace(/^[的地得]/, '').trim();
       if (desc.length > 0 && desc.length < 30) return desc;
+    }
+  }
+  return null;
+}
+
+function detectOutfitInReply(text) {
+  // Detect when AI says it will change outfit (e.g. "给你换个xxx" "穿上xxx给你看")
+  const patterns = [
+    /(?:给你|帮你|我来|这就|马上)换[上个一件套身]?(.{2,20}?)(?:[吧呗啦了！!？?～~]|$)/,
+    /换[上成]?[个一件套身]?(.{2,20}?)(?:给你|怎么样|好不好|[吧呗啦了！!？?～~]|$)/,
+    /穿[上个一件套]?(.{2,20}?)(?:给你看|怎么样|好不好|[吧呗啦了！!？?～~]|$)/,
+  ];
+  for (const p of patterns) {
+    const m = text.match(p);
+    if (m) {
+      const desc = m[1].replace(/^[的地得]/, '').trim();
+      if (desc.length >= 2 && desc.length < 25) return desc;
     }
   }
   return null;
