@@ -327,47 +327,54 @@ class LayeredSpriteEngine {
       return;
     }
 
-    // 2. Pause animation loop during transition
+    // 2. Use CSS transition for shrink (not springs — springs can't guarantee timing)
     this._outfitTransition = true;
-
-    // Scale down
-    this.springs.squashX.pos = 0.7;
-    this.springs.squashY.pos = 0.7;
-    this.springs.bounceY.vel = 50;
+    if (this._wrapper) {
+      this._wrapper.style.transition = 'transform 0.3s ease-in, opacity 0.15s ease';
+      this._wrapper.style.transform = 'scale(0.75) translateY(20px)';
+    }
 
     await new Promise(r => setTimeout(r, 300));
 
-    // 3. Trigger particle burst effect
+    // 3. Trigger particle burst + hide
     this._spawnOutfitParticles();
-
-    // 4. Hide briefly during swap
     if (this._wrapper) this._wrapper.style.opacity = '0';
-    await new Promise(r => setTimeout(r, 100));
 
-    // 5. Swap all sprite sources atomically
+    await new Promise(r => setTimeout(r, 150));
+
+    // 4. Swap all sprite sources atomically
     for (const [key, img] of Object.entries(newImages)) {
       if (this._sprites[key]) {
         this._sprites[key].src = img.src;
       }
     }
 
-    // 6. Reveal with bounce
-    if (this._wrapper) this._wrapper.style.opacity = '1';
-    this.springs.squashX.pos = 0.85;
-    this.springs.squashY.pos = 1.15;
-    this.springs.bounceY.vel = -250;
-
-    // Resume animation loop + ensure wrapper style is clean
-    this._outfitTransition = false;
+    // 5. Reveal with bounce-back
     if (this._wrapper) {
+      this._wrapper.style.transition = 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease';
       this._wrapper.style.opacity = '1';
-      this._wrapper.style.transition = '';
+      this._wrapper.style.transform = 'scale(1) translateY(0)';
     }
 
-    // Secondary bounce after a beat
-    await new Promise(r => setTimeout(r, 300));
-    this.springs.squashX.pos = 1.08;
-    this.springs.squashY.pos = 0.92;
+    await new Promise(r => setTimeout(r, 600));
+
+    // 6. Clean up — remove CSS transition, let springs take over again
+    this._outfitTransition = false;
+    if (this._wrapper) {
+      this._wrapper.style.transition = '';
+      this._wrapper.style.transform = '';
+    }
+    // Reset all springs to neutral
+    this.springs.squashX.pos = 1;
+    this.springs.squashX.vel = 0;
+    this.springs.squashY.pos = 1;
+    this.springs.squashY.vel = 0;
+    this.springs.bounceY.pos = 0;
+    this.springs.bounceY.vel = 0;
+
+    // Gentle entrance bounce
+    this.springs.squashX.pos = 1.06;
+    this.springs.squashY.pos = 0.94;
 
     // 5. Stretch bounce-back after swap
     requestAnimationFrame(() => {
