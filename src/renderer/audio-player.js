@@ -15,6 +15,7 @@ class AudioPlayerQueue {
     this.audioContext = null;
     this.analyser = null;
     this.frequencyData = null;
+    this._analyserConnected = false;
   }
 
   /** Get current frequency data (0-255 per bin). Returns null if not playing. */
@@ -87,17 +88,34 @@ class AudioPlayerQueue {
 
   _playChunk(audioBase64, text) {
     return new Promise((resolve) => {
+      try {
+        this._ensureAudioContext();
+        // Resume AudioContext if suspended (autoplay policy)
+        if (this.audioContext.state === 'suspended') {
+          this.audioContext.resume();
+        }
+      } catch (e) {
+        // AudioContext not available
+      }
+
       const audio = new Audio('data:audio/mp3;base64,' + audioBase64);
       this.currentAudio = audio;
 
       // Connect to analyser for visualization
+      // Each Audio element needs its own MediaElementSource
       try {
-        this._ensureAudioContext();
-        const source = this.audioContext.createMediaElementSource(audio);
-        source.connect(this.analyser);
-        this.analyser.connect(this.audioContext.destination);
+        if (this.audioContext) {
+          const source = this.audioContext.createMediaElementSource(audio);
+          source.connect(this.analyser);
+          // Only connect analyser→destination once (idempotent but cleaner)
+          if (!this._analyserConnected) {
+            this.analyser.connect(this.audioContext.destination);
+            this._analyserConnected = true;
+          }
+        }
       } catch (e) {
-        // Fallback: play without analyser (e.g. CORS issues)
+        console.warn('[AudioPlayer] Analyser connect failed, playing without visualization:', e.message);
+        // Fallback: play without analyser
       }
 
       audio.onplay = () => {
@@ -117,12 +135,14 @@ class AudioPlayerQueue {
         resolve();
       };
 
-      audio.onerror = () => {
+      audio.onerror = (e) => {
+        console.warn('[AudioPlayer] Playback error:', e);
         this.currentAudio = null;
         resolve();
       };
 
-      audio.play().catch(() => {
+      audio.play().catch((err) => {
+        console.warn('[AudioPlayer] play() rejected:', err.message);
         this.currentAudio = null;
         resolve();
       });

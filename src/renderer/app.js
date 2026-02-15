@@ -12,6 +12,7 @@ let isMiniMode = false;
 const BUBBLE_AUTO_HIDE = 12000;
 let followupTimer = null;
 let bubbleHideTimer = null;
+let lastBubbleText = '';  // Track what's already displayed in bubble
 
 // ===== DOM Elements =====
 const speechBubble = document.getElementById('speech-bubble');
@@ -282,6 +283,7 @@ async function handleCommand(command) {
     audioPlayerQueue.reset();
   }
   streamingTTSStarted = false;
+  lastBubbleText = '';
 
   try {
     const result = await window.electronAPI.chat(command);
@@ -440,7 +442,29 @@ function showBubble(content, isUser = false) {
     // Typewriter effect for AI responses (skip for HTML like thinking dots)
     if (content.includes('<')) {
       bubbleText.innerHTML = content;
+      lastBubbleText = content;
+    } else if (content.startsWith(lastBubbleText) && lastBubbleText.length > 0) {
+      // Content is an extension of what's already displayed — only typewrite the new part
+      const newPart = content.slice(lastBubbleText.length);
+      lastBubbleText = content;
+      if (newPart.length > 0) {
+        // Stop any existing typewriter, then append new text
+        if (typewriterTimer) { clearInterval(typewriterTimer); typewriterTimer = null; }
+        let i = 0;
+        typewriterTimer = setInterval(() => {
+          if (i < newPart.length) {
+            bubbleText.textContent += newPart[i];
+            i++;
+            speechBubble.scrollTop = speechBubble.scrollHeight;
+          } else {
+            clearInterval(typewriterTimer);
+            typewriterTimer = null;
+          }
+        }, 30);
+      }
     } else {
+      // Brand new content — typewrite from scratch
+      lastBubbleText = content;
       bubbleText.textContent = '';
       let i = 0;
       const text = content;

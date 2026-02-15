@@ -85,11 +85,14 @@ export class TTSEngine {
 
   /** Start a new streaming session. */
   startSession(): void {
+    // Stop any in-progress session first
+    this.stopped = true;
     this.queue = [];
     this.processing = false;
     this.sentenceCounter = 0;
-    this.stopped = false;
     this.splitter.reset();
+    // Allow new session to proceed
+    this.stopped = false;
   }
 
   /** Stop current session and clear queue. */
