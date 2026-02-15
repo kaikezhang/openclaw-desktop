@@ -107,11 +107,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else if (data.status === 'ready' && data.sprites && layeredSprite) {
       layeredSprite.swapOutfit(data.sprites);
 
-      // Notify gateway about outfit change (for Discord selfie + AI comment)
-      if (data.outfit && data.outfit !== '__default__') {
-        const desc = data.description || data.outfit;
-        window.electronAPI?.notifyOutfitChanged?.(desc).catch(() => {});
-      }
+      // Wardrobe outfit changes no longer notify gateway (was blocking chat queue)
+      // Selfie generation can be triggered manually if needed
 
       // Release held streaming TTS audio
       if (window._outfitTTSHold) {
