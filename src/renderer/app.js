@@ -756,7 +756,7 @@ document.addEventListener('keydown', (e) => {
   // Escape: cancel current action / close panels
   if (e.key === 'Escape') {
     if (wardrobePanel && wardrobePanel.style.display !== 'none') {
-      wardrobePanel.style.display = 'none';
+      closeWardrobeAndApply();
       return;
     }
     if (historyPanel && historyPanel.style.display !== 'none') {
@@ -854,20 +854,14 @@ async function openWardrobe() {
         });
       }
 
-      item.addEventListener('click', async () => {
-        if (outfit.name === '__default__') {
-          // Reset to default sprites
-          wardrobeCurrentOutfit = '__default__';
-          if (window.layeredSpriteEngine) {
-            window.layeredSpriteEngine.resetToDefault?.();
-          }
-        } else {
-          wardrobeCurrentOutfit = outfit.name;
-          window._wardrobeTriggered = true; // Flag: wardrobe initiated this change
-          await window.electronAPI?.loadOutfit?.(outfit.name);
-          // AI comment handled by outfit:change handler via notifyOutfitChanged
-        }
-        // Re-render to update active state
+      item.addEventListener('click', () => {
+        // Just select, don't apply yet — apply on wardrobe close
+        window._wardrobePendingOutfit = outfit;
+        // Update visual selection
+        document.querySelectorAll('.wardrobe-item').forEach(el => el.classList.remove('selected'));
+        item.classList.add('selected');
+        // Re-render to show selection
+        wardrobeCurrentOutfit = outfit.name;
         openWardrobe();
       });
 
@@ -879,10 +873,26 @@ async function openWardrobe() {
   }
 }
 
+function closeWardrobeAndApply() {
+  if (wardrobePanel) wardrobePanel.style.display = 'none';
+
+  const pending = window._wardrobePendingOutfit;
+  window._wardrobePendingOutfit = null;
+  if (!pending) return;
+
+  // Wait 0.5s after close, then apply with transition
+  setTimeout(async () => {
+    if (pending.name === '__default__') {
+      if (layeredSprite) layeredSprite.resetToDefault?.();
+    } else {
+      window._wardrobeTriggered = true;
+      await window.electronAPI?.loadOutfit?.(pending.name);
+    }
+  }, 500);
+}
+
 if (closeWardrobeBtn) {
-  closeWardrobeBtn.addEventListener('click', () => {
-    if (wardrobePanel) wardrobePanel.style.display = 'none';
-  });
+  closeWardrobeBtn.addEventListener('click', closeWardrobeAndApply);
 }
 
 // Track current outfit from outfit:change events

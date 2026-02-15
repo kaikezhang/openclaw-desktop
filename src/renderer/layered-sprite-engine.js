@@ -327,34 +327,43 @@ class LayeredSpriteEngine {
       return;
     }
 
-    // 2. Scale down with spin before swap
-    if (this._wrapper) {
-      this._wrapper.style.transition = 'transform 0.25s cubic-bezier(0.55, 0.06, 0.68, 0.19)';
-      this._wrapper.style.transform = 'scaleX(0.85) scaleY(0.85) translateY(10px)';
-    }
+    // 2. Pause animation loop during transition
+    this._outfitTransition = true;
 
-    await new Promise(r => setTimeout(r, 250));
+    // Scale down
+    this.springs.squashX.pos = 0.7;
+    this.springs.squashY.pos = 0.7;
+    this.springs.bounceY.vel = 50;
+
+    await new Promise(r => setTimeout(r, 300));
 
     // 3. Trigger particle burst effect
     this._spawnOutfitParticles();
 
-    // 4. Swap all sprite sources atomically
+    // 4. Hide briefly during swap
+    if (this._wrapper) this._wrapper.style.opacity = '0';
+    await new Promise(r => setTimeout(r, 100));
+
+    // 5. Swap all sprite sources atomically
     for (const [key, img] of Object.entries(newImages)) {
       if (this._sprites[key]) {
         this._sprites[key].src = img.src;
       }
     }
 
-    // 5. Scale back up with overshoot bounce
-    if (this._wrapper) {
-      this._wrapper.style.transition = 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
-      this._wrapper.style.transform = 'scaleX(1) scaleY(1) translateY(0)';
-    }
+    // 6. Reveal with bounce
+    if (this._wrapper) this._wrapper.style.opacity = '1';
+    this.springs.squashX.pos = 0.85;
+    this.springs.squashY.pos = 1.15;
+    this.springs.bounceY.vel = -250;
 
-    // 6. Spring impulse
-    this.springs.squashX.pos = 0.88;
-    this.springs.squashY.pos = 1.12;
-    this.springs.bounceY.vel = -200;
+    // Resume animation loop
+    this._outfitTransition = false;
+
+    // Secondary bounce after a beat
+    await new Promise(r => setTimeout(r, 300));
+    this.springs.squashX.pos = 1.08;
+    this.springs.squashY.pos = 0.92;
 
     // 5. Stretch bounce-back after swap
     requestAnimationFrame(() => {
@@ -639,6 +648,15 @@ class LayeredSpriteEngine {
     const scaleY = s.squashY.pos * (1 + s.breathe.pos);
     const translateX = s.swayX.pos;
     const rotate = s.tiltX.pos;
+
+    // During outfit transition, only apply scale (let springs drive the effect)
+    if (this._outfitTransition) {
+      this._wrapper.style.transform = `
+        scaleX(${scaleX.toFixed(4)})
+        scaleY(${scaleY.toFixed(4)})
+      `;
+      return;
+    }
 
     this._wrapper.style.transform = `
       translateX(${translateX}px)
