@@ -4,8 +4,10 @@ import { BrowserWindow } from 'electron';
 
 export class SentenceSplitter {
   private buffer = '';
+  private pendingChunk = '';
   private onSentence: (sentence: string) => void;
   private static readonly ENDERS = /[。！？.!?]\s*/g;
+  private static readonly MIN_CHUNK_LENGTH = 80; // Batch short sentences to reduce API calls
 
   constructor(onSentence: (sentence: string) => void) {
     this.onSentence = onSentence;
@@ -16,7 +18,7 @@ export class SentenceSplitter {
     this.flush();
   }
 
-  /** Extract complete sentences from buffer. */
+  /** Extract complete sentences from buffer, batching short ones together. */
   private flush(): void {
     const regex = new RegExp(SentenceSplitter.ENDERS.source, 'g');
     let match: RegExpExecArray | null;
@@ -27,7 +29,12 @@ export class SentenceSplitter {
       this.buffer = this.buffer.substring(endIndex);
 
       if (sentence.length > 0) {
-        this.onSentence(sentence);
+        this.pendingChunk += (this.pendingChunk ? '' : '') + sentence;
+        // Emit when chunk is long enough
+        if (this.pendingChunk.length >= SentenceSplitter.MIN_CHUNK_LENGTH) {
+          this.onSentence(this.pendingChunk);
+          this.pendingChunk = '';
+        }
       }
     }
   }
@@ -35,13 +42,18 @@ export class SentenceSplitter {
   /** Flush remaining buffer (call when stream ends). */
   finish(): void {
     if (this.buffer.trim().length > 0) {
-      this.onSentence(this.buffer.trim());
+      this.pendingChunk += this.buffer.trim();
       this.buffer = '';
+    }
+    if (this.pendingChunk.length > 0) {
+      this.onSentence(this.pendingChunk);
+      this.pendingChunk = '';
     }
   }
 
   reset(): void {
     this.buffer = '';
+    this.pendingChunk = '';
   }
 }
 
@@ -122,25 +134,40 @@ export class TTSEngine {
     }
   }
 
-  /** Process queued sentences sequentially. */
+  /** Process queued sentences sequentially with rate limit retry. */
   private async processQueue(): Promise<void> {
     if (this.processing || this.queue.length === 0) return;
     this.processing = true;
 
     while (this.queue.length > 0 && !this.stopped) {
       const item = this.queue.shift()!;
-      try {
-        const audioBase64 = await this.callMiniMaxTTS(item.sentence);
-        if (audioBase64) {
-          this.send('tts:audioChunk', {
-            sentenceId: item.sentenceId,
-            audio: audioBase64,
-            text: item.sentence,
-            isLast: this.queue.length === 0,
-          });
+      let retries = 0;
+      const maxRetries = 3;
+
+      while (retries <= maxRetries && !this.stopped) {
+        try {
+          const audioBase64 = await this.callMiniMaxTTS(item.sentence);
+          if (audioBase64) {
+            this.send('tts:audioChunk', {
+              sentenceId: item.sentenceId,
+              audio: audioBase64,
+              text: item.sentence,
+              isLast: this.queue.length === 0,
+            });
+          }
+          break; // Success
+        } catch (error: any) {
+          const isRateLimit = error?.message?.includes('rate limit');
+          if (isRateLimit && retries < maxRetries) {
+            const waitMs = (retries + 1) * 2000; // 2s, 4s, 6s
+            console.warn(`[TTS] Rate limited, waiting ${waitMs}ms before retry...`);
+            await new Promise(r => setTimeout(r, waitMs));
+            retries++;
+          } else {
+            console.error(`[TTS] Sentence #${item.sentenceId} failed:`, error);
+            break; // Skip this sentence
+          }
         }
-      } catch (error) {
-        console.error(`[TTS] Sentence #${item.sentenceId} failed:`, error);
       }
     }
 
