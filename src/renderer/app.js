@@ -630,16 +630,16 @@ async function playTTSForReply(reply) {
 function detectOutfitRequest(text) {
   // Detect outfit change intent — returns the outfit description or null
   const patterns = [
-    /穿(.{1,20}?)(?:吧|呗|看看|的样子|$)/,
-    /换[上成]?(.{1,20}?)(?:吧|呗|看看|$)/,
-    /(?:想看你|给我)穿(.{1,20})/,
-    /wear\s+(.{1,30})/i,
-    /change.*?(?:to|into)\s+(.{1,30})/i,
+    /穿[个一件套身]?(.{1,20}?)(?:吧|呗|看看|的样子|$)/,
+    /换[上成]?[个一件套身]?(.{1,20}?)(?:吧|呗|看看|$)/,
+    /(?:想看你|给我)穿[个一件套]?(.{1,20})/,
+    /wear\s+(?:a\s+)?(.{1,30})/i,
+    /change.*?(?:to|into)\s+(?:a\s+)?(.{1,30})/i,
   ];
   for (const p of patterns) {
     const m = text.match(p);
     if (m) {
-      const desc = m[1].trim();
+      const desc = m[1].replace(/^[的地得]/, '').trim();
       if (desc.length > 0 && desc.length < 30) return desc;
     }
   }
