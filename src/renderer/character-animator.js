@@ -48,6 +48,39 @@ class CharacterAnimator {
     this.container.style.position = 'relative';
     this.container.style.overflow = 'hidden';
 
+    // Ambient glow behind character
+    this._glowEl = document.createElement('div');
+    this._glowEl.style.cssText = `
+      position: absolute; bottom: 10%; left: 50%; transform: translateX(-50%);
+      width: 70%; height: 60%; border-radius: 50%; pointer-events: none; z-index: 0;
+      background: radial-gradient(ellipse at center, rgba(139,92,246,0.12), transparent 70%);
+      filter: blur(20px); transition: background 1.5s ease, opacity 1s ease;
+      animation: sprite-glow-pulse 4s ease-in-out infinite;
+    `;
+    this.container.appendChild(this._glowEl);
+
+    // Floating decoration particles
+    this._decoParticles = document.createElement('div');
+    this._decoParticles.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;overflow:hidden;';
+    this._sparkles = [];
+    for (let i = 0; i < 5; i++) {
+      const s = document.createElement('div');
+      const sz = 2 + Math.random() * 3;
+      s.style.cssText = `
+        position: absolute; width: ${sz}px; height: ${sz}px;
+        border-radius: 50%; pointer-events: none;
+        background: rgba(255,255,255,0.8);
+        box-shadow: 0 0 ${sz * 2}px rgba(139,92,246,0.4), 0 0 ${sz}px rgba(255,255,255,0.6);
+        opacity: 0;
+      `;
+      this._decoParticles.appendChild(s);
+      this._sparkles.push({
+        el: s, delay: Math.random() * 8000,
+        x: 15 + Math.random() * 70, y: 10 + Math.random() * 70,
+      });
+    }
+    this.container.appendChild(this._decoParticles);
+
     // Main character image
     this.imgElement = document.createElement('img');
     this.imgElement.id = 'character-sprite';
@@ -61,9 +94,10 @@ class CharacterAnimator {
       bottom: 0;
       left: 50%;
       transform: translateX(-50%);
-      transition: opacity 0.15s ease;
+      transition: opacity 0.15s ease, filter 0.5s ease;
       image-rendering: auto;
       filter: drop-shadow(0 4px 20px rgba(0,0,0,0.15));
+      z-index: 5;
     `;
     this.container.appendChild(this.imgElement);
 
@@ -72,6 +106,33 @@ class CharacterAnimator {
       const img = new Image();
       img.src = src;
     });
+
+    // Inject sprite-specific styles
+    this._injectSpriteStyles();
+  }
+
+  _injectSpriteStyles() {
+    if (document.getElementById('sprite-anim-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'sprite-anim-styles';
+    style.textContent = `
+      @keyframes sprite-glow-pulse {
+        0%, 100% { opacity: 0.6; transform: translateX(-50%) scale(1); }
+        50% { opacity: 1; transform: translateX(-50%) scale(1.05); }
+      }
+      @keyframes sprite-sparkle {
+        0% { opacity: 0; transform: scale(0.3) translateY(0); }
+        15% { opacity: 0.8; transform: scale(1); }
+        50% { opacity: 0.5; transform: scale(0.8) translateY(-15px); }
+        100% { opacity: 0; transform: scale(0.2) translateY(-30px); }
+      }
+      @keyframes sprite-state-flash {
+        0% { filter: drop-shadow(0 4px 20px rgba(0,0,0,0.15)) brightness(1); }
+        50% { filter: drop-shadow(0 4px 20px rgba(0,0,0,0.15)) brightness(1.15); }
+        100% { filter: drop-shadow(0 4px 20px rgba(0,0,0,0.15)) brightness(1); }
+      }
+    `;
+    document.head.appendChild(style);
   }
 
   /**
@@ -80,7 +141,23 @@ class CharacterAnimator {
   start() {
     this._scheduleNextBlink();
     this._animate();
+    this._startSparkles();
     console.log('[CharacterAnimator] Started');
+  }
+
+  _startSparkles() {
+    if (this._sparkleInterval) return;
+    this._sparkleInterval = setInterval(() => {
+      if (this.mode === 'pixel') return;
+      // Pick a random sparkle to animate
+      const s = this._sparkles[Math.floor(Math.random() * this._sparkles.length)];
+      if (!s) return;
+      s.el.style.left = (15 + Math.random() * 70) + '%';
+      s.el.style.top = (10 + Math.random() * 70) + '%';
+      s.el.style.animation = 'none';
+      void s.el.offsetWidth; // force reflow
+      s.el.style.animation = `sprite-sparkle ${2 + Math.random() * 2}s ease-out forwards`;
+    }, 2000);
   }
 
   /**
@@ -95,6 +172,10 @@ class CharacterAnimator {
       clearTimeout(this.blinkTimer);
       this.blinkTimer = null;
     }
+    if (this._sparkleInterval) {
+      clearInterval(this._sparkleInterval);
+      this._sparkleInterval = null;
+    }
   }
 
   /**
@@ -103,6 +184,23 @@ class CharacterAnimator {
   setState(state) {
     if (this.currentState === state) return;
     this.currentState = state;
+
+    // Update glow based on state
+    if (this._glowEl) {
+      const glowMap = {
+        idle: 'rgba(139,92,246,0.12)',
+        listening: 'rgba(239,68,68,0.18)',
+        thinking: 'rgba(245,158,11,0.18)',
+        speaking: 'rgba(139,92,246,0.22)',
+      };
+      this._glowEl.style.background = `radial-gradient(ellipse at center, ${glowMap[state] || glowMap.idle}, transparent 70%)`;
+    }
+
+    // Flash effect on state change
+    if (this.imgElement && state !== 'idle') {
+      this.imgElement.style.animation = 'sprite-state-flash 0.4s ease-out';
+      setTimeout(() => { if (this.imgElement) this.imgElement.style.animation = ''; }, 400);
+    }
 
     if (this.mode === 'pixel') {
       // Pixel mode: use GIF + CSS for bounce/thinking (AI GIFs inconsistent)

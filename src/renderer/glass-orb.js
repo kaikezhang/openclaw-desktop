@@ -238,9 +238,38 @@ class GlassOrbCharacter {
       mix-blend-mode: overlay;
     `;
 
+    // Internal floating light particles
+    this._floatingParticles = [];
+    this._floatingParticleContainer = document.createElement('div');
+    this._floatingParticleContainer.style.cssText = `
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      border-radius: 50%; overflow: hidden; pointer-events: none; z-index: 1;
+    `;
+    for (let i = 0; i < 6; i++) {
+      const fp = document.createElement('div');
+      const sz = 2 + Math.random() * 3;
+      fp.style.cssText = `
+        position: absolute; width: ${sz}px; height: ${sz}px;
+        border-radius: 50%; pointer-events: none;
+        background: radial-gradient(circle, rgba(255,255,255,0.9), rgba(255,255,255,0.2));
+        box-shadow: 0 0 ${sz * 2}px rgba(255,255,255,0.5);
+        filter: blur(0.5px);
+      `;
+      this._floatingParticleContainer.appendChild(fp);
+      this._floatingParticles.push({
+        el: fp, sz,
+        x: Math.random() * 60, y: Math.random() * 60,
+        vx: (Math.random() - 0.5) * 0.3,
+        vy: (Math.random() - 0.5) * 0.3,
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.5 + Math.random() * 1,
+      });
+    }
+
     this.fluid.appendChild(this.blob1);
     this.fluid.appendChild(this.blob2);
     this.fluid.appendChild(this.blob3);
+    this.fluid.appendChild(this._floatingParticleContainer);
 
     // Glass shell — enhanced with specular filter
     this.shell = document.createElement('div');
@@ -290,9 +319,40 @@ class GlassOrbCharacter {
       background: radial-gradient(circle at 50% 50%, transparent 55%, rgba(255,255,255,0.08) 70%, transparent 80%);
       animation: glass-edge-pulse 4s ease-in-out infinite;
     `;
+    // Rainbow refraction edge — subtle prismatic effect
+    const rainbowEdge = document.createElement('div');
+    rainbowEdge.style.cssText = `
+      position: absolute; top: -1px; left: -1px; width: calc(100% + 2px); height: calc(100% + 2px);
+      border-radius: 50%; pointer-events: none;
+      background: conic-gradient(from 0deg,
+        rgba(255,100,100,0.08), rgba(255,200,100,0.08), rgba(100,255,100,0.08),
+        rgba(100,200,255,0.08), rgba(200,100,255,0.08), rgba(255,100,100,0.08));
+      mask: radial-gradient(circle at center, transparent 65%, black 75%, transparent 85%);
+      -webkit-mask: radial-gradient(circle at center, transparent 65%, black 75%, transparent 85%);
+      animation: glass-orb-spin 20s linear infinite;
+      mix-blend-mode: screen;
+      opacity: 0.7;
+    `;
+
+    // Caustic light pattern — simulates light refracting through glass
+    this._causticLayer = document.createElement('div');
+    this._causticLayer.style.cssText = `
+      position: absolute; top: 10%; left: 10%; width: 80%; height: 80%;
+      border-radius: 50%; pointer-events: none;
+      background:
+        radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.25), transparent 30%),
+        radial-gradient(ellipse at 70% 40%, rgba(255,255,255,0.15), transparent 25%),
+        radial-gradient(ellipse at 45% 70%, rgba(255,255,255,0.1), transparent 30%);
+      mix-blend-mode: overlay;
+      opacity: 0.6;
+      animation: glass-caustic-shift 8s ease-in-out infinite alternate;
+    `;
+
     this.shell.appendChild(highlight1);
     this.shell.appendChild(highlight2);
     this.shell.appendChild(edgeGlow);
+    this.shell.appendChild(rainbowEdge);
+    this.shell.appendChild(this._causticLayer);
 
     // ===== Eyes =====
     this.eyesContainer = document.createElement('div');
@@ -402,7 +462,19 @@ class GlassOrbCharacter {
       animation:glass-orb-bub 7s ease-in infinite 3.5s;
     `;
 
+    // Ground shadow/glow
+    this._groundGlow = document.createElement('div');
+    this._groundGlow.style.cssText = `
+      position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%);
+      width: 50px; height: 8px;
+      background: radial-gradient(ellipse at center, rgba(255,120,120,0.25), transparent 70%);
+      border-radius: 50%; pointer-events: none; z-index: -1;
+      filter: blur(3px);
+      transition: background 1.5s ease, width 0.5s ease;
+    `;
+
     // Assemble
+    this.pet.appendChild(this._groundGlow);
     this.pet.appendChild(this.fluid);
     this.pet.appendChild(this.shell);
     this.pet.appendChild(this.eyesContainer);
@@ -464,6 +536,26 @@ class GlassOrbCharacter {
         0% { background-position: 0% 50%; }
         50% { background-position: 100% 50%; }
         100% { background-position: 0% 50%; }
+      }
+      @keyframes glass-caustic-shift {
+        0% {
+          background:
+            radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.25), transparent 30%),
+            radial-gradient(ellipse at 70% 40%, rgba(255,255,255,0.15), transparent 25%),
+            radial-gradient(ellipse at 45% 70%, rgba(255,255,255,0.1), transparent 30%);
+        }
+        50% {
+          background:
+            radial-gradient(ellipse at 55% 35%, rgba(255,255,255,0.2), transparent 28%),
+            radial-gradient(ellipse at 25% 60%, rgba(255,255,255,0.18), transparent 25%),
+            radial-gradient(ellipse at 70% 20%, rgba(255,255,255,0.12), transparent 30%);
+        }
+        100% {
+          background:
+            radial-gradient(ellipse at 40% 55%, rgba(255,255,255,0.22), transparent 30%),
+            radial-gradient(ellipse at 65% 25%, rgba(255,255,255,0.14), transparent 25%),
+            radial-gradient(ellipse at 30% 45%, rgba(255,255,255,0.1), transparent 30%);
+        }
       }
     `;
     document.head.appendChild(style);
@@ -569,6 +661,14 @@ class GlassOrbCharacter {
 
     this.currentMood = mood;
 
+    // Scatter internal particles on mood change
+    if (this._floatingParticles) {
+      for (const fp of this._floatingParticles) {
+        fp.vx = (Math.random() - 0.5) * 1.2;
+        fp.vy = (Math.random() - 0.5) * 1.2;
+      }
+    }
+
     if (mood === 'sleepy') {
       this.blob1.style.transition = 'opacity 1.5s ease';
       this.blob1.style.opacity = '0.6';
@@ -610,6 +710,17 @@ class GlassOrbCharacter {
     } else {
       this.blushL.style.background = '';
       this.blushR.style.background = '';
+    }
+
+    // Update ground glow color
+    const glowColors = {
+      idle: 'rgba(255,120,120,0.25)', happy: 'rgba(255,200,50,0.35)',
+      talking: 'rgba(255,100,100,0.3)', thinking: 'rgba(120,140,255,0.3)',
+      sleepy: 'rgba(180,150,150,0.15)', surprised: 'rgba(255,180,50,0.35)',
+      offline: 'rgba(120,120,120,0.1)',
+    };
+    if (this._groundGlow) {
+      this._groundGlow.style.background = `radial-gradient(ellipse at center, ${glowColors[mood] || glowColors.idle}, transparent 70%)`;
     }
   }
 
@@ -720,6 +831,22 @@ class GlassOrbCharacter {
       this._blobPhase += this._blobSpeed * 0.016;
       const blobVariation = this.currentMood === 'thinking' ? 4 : this.currentMood === 'talking' ? 3.5 : 3;
       this._blobPathEl.setAttribute('d', this._blobPath(this._blobPhase, 30, HALF, HALF, 8, blobVariation));
+
+      // Animate internal floating particles
+      for (const fp of this._floatingParticles) {
+        fp.phase += fp.speed * 0.016;
+        fp.x += fp.vx + Math.sin(fp.phase) * 0.15;
+        fp.y += fp.vy + Math.cos(fp.phase * 0.7) * 0.12;
+        // Bounce off borders (within the orb ~60px range)
+        if (fp.x < 5 || fp.x > 55) fp.vx *= -1;
+        if (fp.y < 5 || fp.y > 55) fp.vy *= -1;
+        fp.x = Math.max(3, Math.min(57, fp.x));
+        fp.y = Math.max(3, Math.min(57, fp.y));
+        const alpha = 0.4 + Math.sin(fp.phase) * 0.3;
+        fp.el.style.left = fp.x + '%';
+        fp.el.style.top = fp.y + '%';
+        fp.el.style.opacity = alpha.toFixed(2);
+      }
 
       // Slowly animate turbulence seed for living distortion
       turbSeed += 0.003;
