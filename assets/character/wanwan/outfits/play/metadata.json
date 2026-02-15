@@ -1,0 +1,12 @@
+{
+  "name": "play",
+  "description": "\u88c5play",
+  "timestamp": "2026-02-15T12:30:14Z",
+  "sprites": {
+    "idle": "char-idle.png",
+    "blink": "char-blink.png",
+    "speaking": "char-speaking.png",
+    "speaking1": "char-speaking-1.png",
+    "speaking2": "char-speaking-2.png"
+  }
+}

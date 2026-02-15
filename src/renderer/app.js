@@ -118,18 +118,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         window._outfitTTSPending = null;
         showBubble(escapeHtml(reply));
         playTTSForReply(reply);
-      } else if (!window._outfitTTSHold) {
-        // No pending TTS — say something about the new outfit
-        const desc = data.description || data.outfit || '新衣服';
-        const lines = [
-          `换好啦～${desc}，好看吗？✨`,
-          `${desc}上身！主人觉得怎么样？🎀`,
-          `哒哒！${desc}的晚晚登场～好看吧！💕`,
-          `${desc}换好了！是不是很可爱？🐱`,
-        ];
-        const line = lines[Math.floor(Math.random() * lines.length)];
-        showBubble(escapeHtml(line));
-        playTTSForReply(line);
       }
     } else if (data.status === 'error') {
       // Release held TTS on error too
@@ -864,6 +852,15 @@ async function openWardrobe() {
         } else {
           wardrobeCurrentOutfit = outfit.name;
           await window.electronAPI?.loadOutfit?.(outfit.name);
+          // Ask AI to comment on the outfit change
+          const desc = outfit.description || outfit.name;
+          window.electronAPI?.chat?.(`[换装完成] 晚晚刚从衣橱换上了${desc}，评论一下自己的新造型吧！`).then(result => {
+            if (result?.message) {
+              const reply = cleanMarkdown(result.message);
+              showBubble(escapeHtml(reply));
+              playTTSForReply(reply);
+            }
+          }).catch(() => {});
         }
         // Re-render to update active state
         openWardrobe();
