@@ -253,6 +253,8 @@ app.whenReady().then(() => {
   // Auto-updater (only in packaged builds)
   initAutoUpdater(() => mainWindow);
 
+  // Outfit change is triggered via IPC from renderer (text trigger __OUTFIT:name__)
+
   // Pre-connect to OpenClaw (non-blocking)
   openclawClient.connect()
     .then(() => console.log('[App] OpenClaw pre-connected'))
