@@ -122,7 +122,7 @@ class LayeredSpriteEngine {
       object-fit: cover; object-position: center bottom;
       position: absolute; bottom: 0; left: 0;
       filter: drop-shadow(0 6px 24px rgba(0,0,0,0.18));
-      transition: opacity 0.12s ease;
+      transition: opacity 0.3s ease;
     `;
     this._spriteA = document.createElement('img');
     this._spriteA.style.cssText = spriteCSS;
@@ -300,7 +300,7 @@ class LayeredSpriteEngine {
     if (this.state === 'speaking' || this._isBlinking) return;
     this._isBlinking = true;
     this._setExpression('blink');
-    const dur = 80 + Math.random() * 100;
+    const dur = 150 + Math.random() * 150;
     setTimeout(() => {
       this._isBlinking = false;
       if (this.state !== 'speaking') {
