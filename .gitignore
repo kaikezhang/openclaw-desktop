@@ -35,6 +35,9 @@ out/
 *.exe
 *.snap
 
+# Generated outfits (only keep presets like red-qipao in git)
+assets/character/wanwan/outfits/outfit-*/
+
 # Layer generation intermediates
 assets/character/wanwan/layers/clean/
 assets/character/wanwan/layers/*.py
