@@ -775,7 +775,7 @@ async function openWardrobe() {
       if (outfit.name === '__default__') {
         // Default outfit uses the base sprite
         item.innerHTML = `
-          <img src="../assets/character/wanwan/layers/final/char-idle.png" alt="默认">
+          <img src="../../assets/character/wanwan/layers/final/char-idle.png" alt="默认">
           ${wardrobeCurrentOutfit === outfit.name ? '<div class="outfit-check">✓</div>' : ''}
           <div class="outfit-label">${outfit.description}</div>
         `;
