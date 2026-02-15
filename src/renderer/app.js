@@ -367,32 +367,14 @@ async function handleCommand(command) {
       const res = await window.electronAPI?.requestOutfit?.(outfitRequest);
       console.log('[App] Outfit request result:', res);
       if (res?.cached) {
-        // Outfit found in wardrobe — skip chat entirely
-        const localReply = `换好啦～${outfitRequest} ✨`;
-        if (typeof addToHistory === 'function') {
-          addToHistory('user', command);
-          addToHistory('assistant', localReply);
-        }
-        setAppState('speaking');
-        showBubble(escapeHtml(localReply));
-        await playTTSForReply(localReply);
-        isProcessing = false;
-        setAppState('idle');
-        return;
+        // Outfit found in wardrobe — still chat but skip selfie (notifyChanged handles it)
+        outfitGenerating = false;
       }
-      // New outfit generating — also skip chat to avoid Discord selfie crosstalk
-      const genReply = `好的～正在生成${outfitRequest}，稍等一下哦～ ✨`;
-      if (typeof addToHistory === 'function') {
-        addToHistory('user', command);
-        addToHistory('assistant', genReply);
+      if (res && !res.cached) {
+        outfitGenerating = true;
+        window._outfitTTSHold = true;
+        window._outfitTTSHoldQueue = [];
       }
-      setAppState('speaking');
-      showBubble(escapeHtml(genReply));
-      await playTTSForReply(genReply);
-      // outfit:change handler will update when generation completes
-      isProcessing = false;
-      setAppState('idle');
-      return;
     }
 
     const result = await window.electronAPI.chat(command);
