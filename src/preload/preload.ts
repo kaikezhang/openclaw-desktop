@@ -69,6 +69,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     error?: string;
   }) => void) =>
     ipcRenderer.on('outfit:change', (_e, data) => cb(data)),
+  loadOutfit: (name: string) => ipcRenderer.invoke('outfit:load', name),
 
   // ===== Global Hotkeys =====
   onToggleMini: (cb: () => void) =>

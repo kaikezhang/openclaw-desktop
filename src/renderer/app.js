@@ -311,8 +311,19 @@ async function handleCommand(command) {
 
   try {
     const result = await window.electronAPI.chat(command);
-    const reply = cleanMarkdown(result.message || '');
+    let reply = cleanMarkdown(result.message || '');
     lastAIResponse = reply;
+
+    // Check for outfit change trigger: __OUTFIT:outfit-name__
+    const outfitMatch = reply.match(/__OUTFIT:([a-zA-Z0-9_-]+)__/);
+    if (outfitMatch) {
+      const outfitName = outfitMatch[1];
+      reply = reply.replace(/__OUTFIT:[a-zA-Z0-9_-]+__/g, '').trim();
+      lastAIResponse = reply;
+      console.log('[App] Outfit trigger detected:', outfitName);
+      // Request outfit load from main process
+      window.electronAPI?.loadOutfit?.(outfitName);
+    }
 
     // Bounce character on new response
     if (glassOrbCharacter) glassOrbCharacter.bounce();

@@ -1,0 +1,10 @@
+{
+  "name": "red-qipao",
+  "description": "elegant red qipao Chinese dress",
+  "timestamp": "2026-02-15T09:43:37Z",
+  "sprites": {
+    "idle": "char-idle.png",
+    "blink": "char-blink.png",
+    "speaking": "char-speaking.png"
+  }
+}

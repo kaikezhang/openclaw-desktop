@@ -211,4 +211,30 @@ export function registerIpcHandlers(deps: {
     setLoginItem(enabled);
     return { success: true };
   });
+
+  // ===== Outfit Loading =====
+  ipcMain.handle('outfit:load', async (_event, name: string) => {
+    try {
+      const { getOutfit, setCurrentOutfit } = await import('./wardrobe');
+      const sprites = getOutfit(name);
+      if (!sprites) {
+        console.warn(`[IPC] Outfit not found: ${name}`);
+        return { success: false, error: 'Outfit not found' };
+      }
+      setCurrentOutfit(name);
+      // Send to renderer
+      const win = BrowserWindow.getAllWindows()[0];
+      if (win) {
+        win.webContents.send('outfit:change', {
+          status: 'ready',
+          outfit: name,
+          sprites,
+        });
+      }
+      return { success: true };
+    } catch (e: any) {
+      console.error('[IPC] Outfit load error:', e);
+      return { success: false, error: e.message };
+    }
+  });
 }
