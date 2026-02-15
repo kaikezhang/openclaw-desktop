@@ -793,13 +793,6 @@ document.addEventListener('keydown', (e) => {
     }
   }
 
-  // Space: toggle recording (when not typing in input)
-  if (e.key === ' ' && document.activeElement !== textInput) {
-    e.preventDefault();
-    onCharacterClick();
-    return;
-  }
-
   // Ctrl+H / Cmd+H: toggle history
   if ((e.ctrlKey || e.metaKey) && e.key === 'h') {
     e.preventDefault();
