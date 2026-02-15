@@ -60,9 +60,14 @@ class LayeredSpriteEngine {
     this._assets = {
       idle: 'char-idle.png',
       speaking: 'char-speaking.png',
+      'speaking-1': 'char-speaking-1.png',
+      'speaking-2': 'char-speaking-2.png',
       blink: 'char-blink.png',
     };
     this._loaded = false;
+    this._speakFrameIndex = 0;
+    this._speakFrameTimer = null;
+    this._hasSpeakFrames = false;
   }
 
   /**
@@ -70,16 +75,27 @@ class LayeredSpriteEngine {
    */
   async loadLayers(basePath) {
     this._basePath = basePath;
-    // Preload all images
-    const promises = Object.values(this._assets).map(file => {
+    // Preload all images (speaking-1/speaking-2 are optional)
+    const required = ['idle', 'speaking', 'blink'];
+    const optional = ['speaking-1', 'speaking-2'];
+    const promises = required.map(key => {
       return new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = resolve;
         img.onerror = reject;
-        img.src = `${basePath}/${file}`;
+        img.src = `${basePath}/${this._assets[key]}`;
       });
     });
-    await Promise.all(promises);
+    // Optional: try to load speaking frames, don't fail if missing
+    const optPromises = optional.map(key => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => { this._hasSpeakFrames = true; resolve(); };
+        img.onerror = () => resolve(); // silently skip
+        img.src = `${basePath}/${this._assets[key]}`;
+      });
+    });
+    await Promise.all([...promises, ...optPromises]);
     this._loaded = true;
     this._buildDOM();
   }
@@ -124,12 +140,17 @@ class LayeredSpriteEngine {
       filter: drop-shadow(0 6px 24px rgba(0,0,0,0.18));
     `;
     this._sprites = {};
+    const optionalKeys = ['speaking-1', 'speaking-2'];
     Object.entries(this._assets).forEach(([key, file]) => {
       const img = document.createElement('img');
       img.style.cssText = spriteCSS;
       img.src = `${this._basePath}/${file}`;
       img.style.opacity = key === 'idle' ? '1' : '0';
-      img.style.transition = 'opacity 0.3s ease';
+      img.style.transition = 'opacity 0.15s ease';
+      // For optional speaking frames, hide on error
+      if (optionalKeys.includes(key)) {
+        img.onerror = () => { img.style.display = 'none'; };
+      }
       this._wrapper.appendChild(img);
       this._sprites[key] = img;
     });
@@ -228,13 +249,14 @@ class LayeredSpriteEngine {
     if (state === 'speaking') {
       this.springs.squashX.pos = 1.06;
       this.springs.squashY.pos = 0.94;
-      this._setExpression('speaking');
+      this._startSpeakAnimation();
     } else if (state === 'thinking') {
       this.springs.squashX.pos = 0.97;
       this.springs.squashY.pos = 1.03;
       this._setExpression('idle');
     } else {
       // idle
+      this._stopSpeakAnimation();
       if (prev === 'speaking') {
         this.springs.squashX.pos = 0.96;
         this.springs.squashY.pos = 1.04;
@@ -393,6 +415,36 @@ class LayeredSpriteEngine {
     }
   }
 
+  /** Start speaking mouth animation — cycle through speaking frames synced to audio */
+  _startSpeakAnimation() {
+    this._stopSpeakAnimation();
+    const frames = ['speaking', 'speaking-1', 'speaking-2'].filter(k => {
+      const el = this._sprites[k];
+      return el && el.style.display !== 'none' && el.naturalWidth > 0;
+    });
+    if (frames.length <= 1) {
+      // Only one speaking frame, use it directly
+      this._setExpression('speaking');
+      return;
+    }
+    this._speakFrameIndex = 0;
+    this._speakFrames = frames;
+    this._setExpression(frames[0]);
+    // Cycle frames at ~150ms interval, driven by volume in updateVisualizer
+    this._speakFrameTimer = setInterval(() => {
+      if (this.state !== 'speaking') return;
+      this._speakFrameIndex = (this._speakFrameIndex + 1) % this._speakFrames.length;
+      this._setExpression(this._speakFrames[this._speakFrameIndex]);
+    }, 180);
+  }
+
+  _stopSpeakAnimation() {
+    if (this._speakFrameTimer) {
+      clearInterval(this._speakFrameTimer);
+      this._speakFrameTimer = null;
+    }
+  }
+
   /** Update with audio volume (0-1) for lip sync reactivity */
   updateVisualizer(volume) {
     if (this.state === 'speaking' && volume > 0.05) {
@@ -401,6 +453,15 @@ class LayeredSpriteEngine {
       if (volume > 0.3) {
         this.springs.squashX.pos = 1 + volume * 0.03;
         this.springs.squashY.pos = 1 - volume * 0.02;
+      }
+      // Volume-driven frame selection for more natural lip sync
+      if (this._speakFrames && this._speakFrames.length > 1) {
+        const frameIdx = volume > 0.4 ? this._speakFrames.length - 1 :
+                         volume > 0.15 ? 1 : 0;
+        if (frameIdx !== this._speakFrameIndex) {
+          this._speakFrameIndex = frameIdx;
+          this._setExpression(this._speakFrames[frameIdx]);
+        }
       }
     } else {
       this.springs.speakBounce.target = 0;

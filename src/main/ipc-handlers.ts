@@ -299,20 +299,34 @@ export function registerIpcHandlers(deps: {
                 { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 }
               ).replace(/\s/g, '');
             };
-            const sprites = {
+            const sprites: Record<string, string> = {
               idle: fetchSprite('char-idle.png'),
               blink: fetchSprite('char-blink.png'),
               speaking: fetchSprite('char-speaking.png'),
             };
+            // Try to fetch optional speaking frames
+            const tryFetch = (file: string): string | null => {
+              try { return fetchSprite(file); } catch { return null; }
+            };
+            const s1 = tryFetch('char-speaking-1.png');
+            const s2 = tryFetch('char-speaking-2.png');
+            if (s1) sprites['speaking-1'] = s1;
+            if (s2) sprites['speaking-2'] = s2;
+
             // Also save locally for caching
             const path = require('path');
             const fs = require('fs');
             const { app } = require('electron');
             const localDir = path.join(app.getPath('userData'), 'outfits', genName);
             fs.mkdirSync(localDir, { recursive: true });
-            fs.writeFileSync(path.join(localDir, 'char-idle.png'), Buffer.from(sprites.idle, 'base64'));
-            fs.writeFileSync(path.join(localDir, 'char-blink.png'), Buffer.from(sprites.blink, 'base64'));
-            fs.writeFileSync(path.join(localDir, 'char-speaking.png'), Buffer.from(sprites.speaking, 'base64'));
+            for (const [key, b64] of Object.entries(sprites)) {
+              const fname = key === 'idle' ? 'char-idle.png' :
+                            key === 'blink' ? 'char-blink.png' :
+                            key === 'speaking' ? 'char-speaking.png' :
+                            key === 'speaking-1' ? 'char-speaking-1.png' :
+                            key === 'speaking-2' ? 'char-speaking-2.png' : null;
+              if (fname) fs.writeFileSync(path.join(localDir, fname), Buffer.from(b64, 'base64'));
+            }
             // Copy metadata
             try {
               const metaJson = execSync(

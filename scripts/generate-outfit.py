@@ -277,43 +277,77 @@ def main():
     # Also get its bbox for alignment checks
     idle_bbox = get_bbox(idle_img)
 
-    # ── Step 3: Generate blink ──
-    print("\n[2/6] Generating blink sprite...")
-    blink_prompt = (
-        "Close the eyes gently as if blinking. "
-        "Keep EVERYTHING else exactly the same."
-    )
-    blink_img = generate_with_retry(
-        client, idle_img, blink_prompt, ref_bbox, ref_img, "blink"
-    )
+    # ── Step 3-5: Generate blink + speaking frames CONCURRENTLY ──
+    import concurrent.futures
+
+    def gen_blink():
+        print("\n[2/6] Generating blink sprite...")
+        prompt = (
+            "Close the eyes gently as if blinking. "
+            "Keep EVERYTHING else exactly the same."
+        )
+        img = generate_with_retry(client, idle_img, prompt, ref_bbox, ref_img, "blink")
+        if img is None:
+            print("Error: Failed to generate blink sprite", file=sys.stderr)
+            return None
+        img = apply_ref_alpha(img, idle_img)
+        img.save(str(outfit_dir / "char-blink.png"), "PNG")
+        print(f"  Saved: char-blink.png")
+        return img
+
+    def gen_speaking1():
+        print("\n[3/6] Generating speaking-1 sprite (mouth slightly open)...")
+        prompt = (
+            "Open the mouth slightly as if starting to speak. Small mouth opening. "
+            "Keep EVERYTHING else exactly the same."
+        )
+        img = generate_with_retry(client, idle_img, prompt, ref_bbox, ref_img, "speaking-1")
+        if img is None:
+            print("Error: Failed to generate speaking-1 sprite", file=sys.stderr)
+            return None
+        img = apply_ref_alpha(img, idle_img)
+        img.save(str(outfit_dir / "char-speaking-1.png"), "PNG")
+        print(f"  Saved: char-speaking-1.png")
+        return img
+
+    def gen_speaking2():
+        print("\n[4/6] Generating speaking-2 sprite (mouth wide open)...")
+        prompt = (
+            "Open the mouth wide as if saying 'ah' or speaking loudly. Bigger mouth opening. "
+            "Keep EVERYTHING else exactly the same."
+        )
+        img = generate_with_retry(client, idle_img, prompt, ref_bbox, ref_img, "speaking-2")
+        if img is None:
+            print("Error: Failed to generate speaking-2 sprite", file=sys.stderr)
+            return None
+        img = apply_ref_alpha(img, idle_img)
+        img.save(str(outfit_dir / "char-speaking-2.png"), "PNG")
+        print(f"  Saved: char-speaking-2.png")
+        return img
+
+    # Run all 3 concurrently
+    with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
+        f_blink = executor.submit(gen_blink)
+        f_speak1 = executor.submit(gen_speaking1)
+        f_speak2 = executor.submit(gen_speaking2)
+
+        blink_img = f_blink.result()
+        speaking1_img = f_speak1.result()
+        speaking2_img = f_speak2.result()
+
     if blink_img is None:
-        print("Error: Failed to generate blink sprite", file=sys.stderr)
         sys.exit(1)
 
-    # Apply idle's alpha to blink for consistency (prevents flicker)
-    blink_img = apply_ref_alpha(blink_img, idle_img)
-    blink_path = outfit_dir / "char-blink.png"
-    blink_img.save(str(blink_path), "PNG")
-    print(f"  Saved: {blink_path}")
-
-    # ── Step 5: Generate speaking ──
-    print("\n[3/6] Generating speaking sprite...")
-    speaking_prompt = (
-        "Open the mouth slightly as if speaking. "
-        "Keep EVERYTHING else exactly the same."
-    )
-    speaking_img = generate_with_retry(
-        client, idle_img, speaking_prompt, ref_bbox, ref_img, "speaking"
-    )
-    if speaking_img is None:
-        print("Error: Failed to generate speaking sprite", file=sys.stderr)
+    # Fallback: if speaking-2 failed, duplicate speaking-1 as speaking
+    if speaking1_img is None:
+        print("Error: Failed to generate any speaking sprite", file=sys.stderr)
         sys.exit(1)
 
-    # Apply idle's alpha to speaking for consistency
-    speaking_img = apply_ref_alpha(speaking_img, idle_img)
+    # Also save char-speaking.png as speaking-1 for backward compat
+    speaking_img = speaking1_img
     speaking_path = outfit_dir / "char-speaking.png"
     speaking_img.save(str(speaking_path), "PNG")
-    print(f"  Saved: {speaking_path}")
+    print(f"  Saved: char-speaking.png (backward compat = speaking-1)")
 
     # ── Quality gate: verify all alpha channels match ──
     print("\n[Quality] Verifying alpha channel consistency...")
@@ -323,21 +357,33 @@ def main():
     blink_a = np.array(blink_img.split()[3])
     speaking_a = np.array(speaking_img.split()[3])
 
-    if np.array_equal(idle_a, blink_a) and np.array_equal(idle_a, speaking_a):
-        print("  All 3 sprites have identical alpha channels ✓")
+    # Also verify speaking frames
+    speak1_a = np.array(speaking1_img.split()[3]) if speaking1_img else idle_a
+    speak2_a = np.array(speaking2_img.split()[3]) if speaking2_img else idle_a
+    all_match = np.array_equal(idle_a, blink_a) and np.array_equal(idle_a, speak1_a)
+    if speaking2_img:
+        all_match = all_match and np.array_equal(idle_a, speak2_a)
+
+    if all_match:
+        print("  All sprites have identical alpha channels ✓")
     else:
         print("  [WARN] Alpha channels differ — this may cause flicker")
 
     # ── Save metadata ──
+    sprites_meta = {
+        "idle": "char-idle.png",
+        "blink": "char-blink.png",
+        "speaking": "char-speaking.png",
+        "speaking1": "char-speaking-1.png",
+    }
+    if speaking2_img:
+        sprites_meta["speaking2"] = "char-speaking-2.png"
+
     metadata = {
         "name": outfit_name,
         "description": args.outfit,
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "sprites": {
-            "idle": "char-idle.png",
-            "blink": "char-blink.png",
-            "speaking": "char-speaking.png",
-        },
+        "sprites": sprites_meta,
     }
     meta_path = outfit_dir / "metadata.json"
     meta_path.write_text(json.dumps(metadata, indent=2))

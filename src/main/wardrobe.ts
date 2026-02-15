@@ -75,24 +75,38 @@ export function getOutfit(name: string): OutfitSprites | null {
   const outfitDir = path.join(OUTFITS_DIR, name);
   if (!fs.existsSync(outfitDir)) return null;
 
-  const files = {
+  const requiredFiles: Record<string, string> = {
     idle: path.join(outfitDir, 'char-idle.png'),
     blink: path.join(outfitDir, 'char-blink.png'),
     speaking: path.join(outfitDir, 'char-speaking.png'),
   };
 
-  for (const [key, filePath] of Object.entries(files)) {
+  const optionalFiles: Record<string, string> = {
+    'speaking-1': path.join(outfitDir, 'char-speaking-1.png'),
+    'speaking-2': path.join(outfitDir, 'char-speaking-2.png'),
+  };
+
+  for (const [key, filePath] of Object.entries(requiredFiles)) {
     if (!fs.existsSync(filePath)) {
       console.warn(`[Wardrobe] Missing sprite ${key}: ${filePath}`);
       return null;
     }
   }
 
-  return {
-    idle: fs.readFileSync(files.idle).toString('base64'),
-    blink: fs.readFileSync(files.blink).toString('base64'),
-    speaking: fs.readFileSync(files.speaking).toString('base64'),
+  const result: Record<string, string> = {
+    idle: fs.readFileSync(requiredFiles.idle).toString('base64'),
+    blink: fs.readFileSync(requiredFiles.blink).toString('base64'),
+    speaking: fs.readFileSync(requiredFiles.speaking).toString('base64'),
   };
+
+  // Load optional speaking frames
+  for (const [key, filePath] of Object.entries(optionalFiles)) {
+    if (fs.existsSync(filePath)) {
+      result[key] = fs.readFileSync(filePath).toString('base64');
+    }
+  }
+
+  return result as unknown as OutfitSprites;
 }
 
 /**
