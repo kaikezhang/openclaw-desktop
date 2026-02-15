@@ -81,7 +81,7 @@ export class OpenClawClient {
     console.log(`[OpenClaw] Resetting session: ${this.sessionKey}`);
     try {
       await this.ensureConnected();
-      // Send /reset as a chat message to clear session history
+      // Send /new to start a fresh session (clears history + creates new session ID)
       const reqId = randomUUID();
       this.ws!.send(JSON.stringify({
         type: 'req',
@@ -90,7 +90,7 @@ export class OpenClawClient {
         params: {
           sessionKey: this.sessionKey,
           idempotencyKey: randomUUID(),
-          message: '/reset',
+          message: '/new',
         },
       }));
     } catch (e) {
