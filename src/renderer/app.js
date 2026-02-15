@@ -646,6 +646,10 @@ function startVizLoop() {
       if (glassOrbCharacter) {
         glassOrbCharacter.updateVisualizer(vol);
       }
+      // Sprite lip sync
+      if (layeredSprite) {
+        layeredSprite.updateVisualizer(vol);
+      }
       // Live2D lip sync
       if (live2dManager?.isLoaded) {
         live2dManager.setLipSync(vol);
