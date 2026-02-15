@@ -1,79 +1,94 @@
-# OpenClaw Desktop Assistant - Rebuild Task
+# AGENTS.md — Outfit Change Feature
 
-## Goal
-Rebuild this Electron desktop assistant from scratch with modern architecture. Reference files from the old MVP are in the root (app.js, index.html, styles.css, electron/, orb.js, audio-processor.js).
+## Task
+
+Implement the **outfit change** feature for openclaw-desktop. This is a PNGTuber-style Electron app where an anime character (wanwan) displays on screen with idle/blink/speaking sprites.
 
 ## What to Build
 
-### Architecture
-```
-openclaw-desktop/
-├── src/
-│   ├── main/                 # Electron main process
-│   │   ├── main.ts           # App entry, window management
-│   │   ├── ipc-handlers.ts   # All IPC handlers
-│   │   ├── openclaw-client.ts # OpenClaw WebSocket client
-│   │   ├── tts-engine.ts     # MiniMax TTS with sentence queue
-│   │   └── stt-engine.ts     # Deepgram STT
-│   ├── renderer/             # Frontend (vanilla HTML/CSS/JS for now)
-│   │   ├── index.html
-│   │   ├── styles.css
-│   │   ├── app.js
-│   │   ├── live2d-manager.js # Live2D Cubism integration
-│   │   ├── audio-player.js   # Audio playback queue
-│   │   └── orb.js            # Aura/particle effects
-│   └── preload/
-│       └── preload.ts
-├── assets/
-│   └── models/               # Live2D model files go here
-├── package.json
-├── tsconfig.json
-├── .env.example
-├── .gitignore
-└── README.md
-```
+### 1. Sprite Generation Script (`scripts/generate-outfit.py`)
 
-### Key Requirements
+A Python script that generates a complete outfit sprite set (idle, blink, speaking) from a text description.
 
-1. **TypeScript for main process** - Better type safety
-2. **OpenClaw WebSocket Client** - Connect to OpenClaw gateway (port from env), authenticate, send/receive chat messages with streaming support
-3. **Live2D Ready** - Set up pixi-live2d-display integration (CDN or npm). Create a Live2D manager that can:
-   - Load .model3.json files
-   - Switch between idle/speaking/listening/thinking animations
-   - Lip sync based on audio amplitude
-4. **TTS Engine** - MiniMax Speech-02-HD with sentence splitting and queued playback
-5. **STT Engine** - Deepgram Nova-2 with VAD, keep-alive connection
-6. **Modern UI** - Frameless transparent window, drag support, mini-orb mode, text input + voice input
-7. **State Machine** - Clear states: idle → listening → thinking → speaking → idle
+**Workflow (each step is critical — based on real battle-tested experience):**
 
-### Live2D Integration Notes
-- Use `pixi-live2d-display` npm package (works with Cubism 2/3/4)
-- Renderer needs PixiJS + pixi-live2d-display
-- Placeholder: if no model loaded, show the video-based character (lobster) from old MVP
-- Model files not included - user will add their own .model3.json
+1. **Generate idle** — Use Gemini Image Edit API to change the outfit on the reference idle image
+   - Input: `assets/character/wanwan/layers/final/char-idle.png` (553x400, RGBA with transparent background)
+   - API: Gemini via the generate_image.py helper at `/usr/lib/node_modules/openclaw/skills/nano-banana-pro/scripts/generate_image.py`
+   - Prompt template: "Change this character's outfit to [DESCRIPTION]. Keep the EXACT same character, face, hair, pose, position, composition, background. Only change the clothing."
 
-### What to Keep from Old MVP
-- The OpenClaw WebSocket protocol (connect challenge → auth → chat.send/chat events)
-- MiniMax TTS hex→audio conversion logic
-- Deepgram STT configuration (nova-2, zh-CN, VAD, keep-alive)
-- Sentence splitting for streaming TTS
-- Mini-orb mode concept
-- Aura/particle canvas effects (orb.js)
+2. **Normalize idle** — Critical post-processing:
+   - Detect character bounding box (non-white, non-transparent pixels)
+   - Scale + position to match reference idle's bounding box (center-align horizontal, bottom-align vertical)
+   - Resize to exactly 553x400
+   - Apply reference idle's alpha channel (transparent background)
 
-### What to Improve
-- Proper TypeScript main process (compile with tsc)
-- Clean IPC channel naming conventions
-- Proper error handling and reconnection logic
-- Modular file structure (not everything in one giant main.js)
-- README with setup instructions
+3. **Generate blink** — Gemini edit on the NEW idle:
+   - Prompt: "Close the eyes gently as if blinking. Keep EVERYTHING else exactly the same."
+   
+4. **Normalize blink** — Same as step 2, plus:
+   - Copy idle's alpha channel onto blink (CRITICAL — prevents white background flicker)
+   - Verify bounding box alignment with idle (tolerance: 5%)
 
-### Build Setup
-- Use `tsc` to compile TypeScript → dist/
-- Electron loads from dist/
-- npm scripts: `build` (tsc), `start` (build + electron), `dev` (watch mode)
+5. **Generate speaking** — Gemini edit on the NEW idle:
+   - Prompt: "Open the mouth slightly as if speaking. Keep EVERYTHING else exactly the same."
 
-## Important
-- Keep the `.env.example` with all needed env vars
-- Don't include any API keys
-- Make sure .gitignore covers node_modules, dist, .env, *.mp4
-- Write a good README.md explaining the project, setup, and how to add Live2D models
+6. **Normalize speaking** — Same as step 4
+
+7. **Save to wardrobe** — Output to `assets/character/wanwan/outfits/<outfit-name>/`
+   - `char-idle.png`, `char-blink.png`, `char-speaking.png`
+   - `metadata.json` with name, prompt, timestamp
+
+**Quality gates:**
+- Auto-retry each generation step up to 3 times if bbox alignment is off by >10%
+- All 3 sprites must have identical alpha channels (copied from idle)
+
+### 2. Wardrobe Manager (TypeScript, `src/main/wardrobe.ts`)
+
+Server-side outfit management:
+- `listOutfits()` — scan outfits directory, return available outfits
+- `getOutfit(name)` — load sprites as base64
+- `getCurrentOutfit()` / `setCurrentOutfit(name)` — track active outfit
+- `saveOutfit(name, sprites, metadata)` — save new outfit
+
+### 3. WebSocket Protocol Extension (`src/main/openclaw-client.ts`)
+
+Add `outfit_change` message type:
+- Server sends: `{ type: "outfit_change", status: "loading"|"ready"|"error", outfit: "name", sprites: { idle, blink, speaking } }`
+- Desktop app listens and triggers sprite swap
+
+### 4. Desktop Sprite Hot-Swap (`src/renderer/layered-sprite-engine.js`)
+
+New method `swapOutfit(sprites)`:
+- Receives base64 sprites object
+- Creates new Image objects, waits for `.decode()` to complete
+- Swaps all sprite img sources atomically
+- Transition: ✨ particle burst effect during swap
+
+### 5. Speaking Mouth Animation (CSS)
+
+Enhance speaking state:
+- Clip the lower face area of speaking sprite
+- Apply `scaleY` pulsation (1.0 to 1.15) synced to TTS volume
+- Use the existing `speakBounce` spring value
+
+## Key Files
+
+- `assets/character/wanwan/layers/final/` — reference sprites (DO NOT MODIFY)
+- `assets/character/wanwan/outfits/` — wardrobe directory (create if missing)
+- `src/main/openclaw-client.ts` — WebSocket client
+- `src/renderer/layered-sprite-engine.js` — sprite rendering engine
+- `src/renderer/app.js` — main renderer logic
+- `docs/plans/2025-02-15-outfit-change-design.md` — full design doc
+
+## Environment
+
+- Gemini API available via: `uv run /usr/lib/node_modules/openclaw/skills/nano-banana-pro/scripts/generate_image.py`
+- GEMINI_API_KEY is set in environment
+- Python 3 + PIL/numpy available
+- Node.js + TypeScript project, build with `npm run build`
+
+## Implementation Order
+
+Start with scripts/generate-outfit.py — this is the hardest part and needs to work before anything else.
+Then wardrobe.ts → WebSocket protocol → sprite hot-swap → mouth animation.
