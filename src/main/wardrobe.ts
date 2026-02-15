@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { app } from 'electron';
 
 export interface OutfitMetadata {
   name: string;
@@ -24,7 +25,8 @@ export interface OutfitInfo {
   timestamp: string;
 }
 
-const OUTFITS_DIR = path.join(__dirname, '..', '..', 'assets', 'character', 'wanwan', 'outfits');
+// Store outfits in user data directory (persistent across updates, not in git)
+const OUTFITS_DIR = path.join(app.getPath('userData'), 'outfits');
 const DEFAULT_OUTFIT = '__default__';
 
 let currentOutfit: string = DEFAULT_OUTFIT;

@@ -306,7 +306,8 @@ export function registerIpcHandlers(deps: {
             // Also save locally for caching
             const path = require('path');
             const fs = require('fs');
-            const localDir = path.join(__dirname, '..', '..', 'assets', 'character', 'wanwan', 'outfits', genName);
+            const { app } = require('electron');
+            const localDir = path.join(app.getPath('userData'), 'outfits', genName);
             fs.mkdirSync(localDir, { recursive: true });
             fs.writeFileSync(path.join(localDir, 'char-idle.png'), Buffer.from(sprites.idle, 'base64'));
             fs.writeFileSync(path.join(localDir, 'char-blink.png'), Buffer.from(sprites.blink, 'base64'));

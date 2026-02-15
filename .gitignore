@@ -35,7 +35,8 @@ out/
 *.exe
 *.snap
 
-# Generated outfits — keep all in git for wardrobe sync
+# Generated outfits (runtime data, not in git)
+assets/character/wanwan/outfits/outfit-*/
 
 # Layer generation intermediates
 assets/character/wanwan/layers/clean/
