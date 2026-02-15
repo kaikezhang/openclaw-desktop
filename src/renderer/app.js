@@ -87,15 +87,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Outfit change from gateway
   // Pending TTS to play after outfit swap completes
   window._outfitTTSPending = null;
+  window._lastOutfitChangeTime = 0;
   window.electronAPI?.onOutfitChange?.((data) => {
     console.log('[App] Outfit change:', data.status, data.outfit);
+
+    // Debounce: ignore rapid-fire outfit changes (< 2s apart)
+    const now = Date.now();
+    if (data.status === 'ready' && now - window._lastOutfitChangeTime < 2000) {
+      console.log('[App] Outfit change debounced');
+      // Still swap sprites silently
+      if (data.sprites && layeredSprite) layeredSprite.swapOutfit(data.sprites);
+      return;
+    }
+    if (data.status === 'ready') window._lastOutfitChangeTime = now;
+
     if (data.status === 'loading') {
       showBubble('换装中～ 等一下下…');
       if (layeredSprite) layeredSprite.bounce();
     } else if (data.status === 'ready' && data.sprites && layeredSprite) {
       layeredSprite.swapOutfit(data.sprites);
 
-      // Notify gateway about outfit change (for Discord selfie)
+      // Notify gateway about outfit change (for Discord selfie + AI comment)
       if (data.outfit && data.outfit !== '__default__') {
         const desc = data.description || data.outfit;
         window.electronAPI?.notifyOutfitChanged?.(desc).catch(() => {});
@@ -851,16 +863,9 @@ async function openWardrobe() {
           }
         } else {
           wardrobeCurrentOutfit = outfit.name;
+          window._wardrobeTriggered = true; // Flag: wardrobe initiated this change
           await window.electronAPI?.loadOutfit?.(outfit.name);
-          // Ask AI to comment on the outfit change
-          const desc = outfit.description || outfit.name;
-          window.electronAPI?.chat?.(`[换装完成] 晚晚刚从衣橱换上了${desc}，评论一下自己的新造型吧！`).then(result => {
-            if (result?.message) {
-              const reply = cleanMarkdown(result.message);
-              showBubble(escapeHtml(reply));
-              playTTSForReply(reply);
-            }
-          }).catch(() => {});
+          // AI comment handled by outfit:change handler via notifyOutfitChanged
         }
         // Re-render to update active state
         openWardrobe();
