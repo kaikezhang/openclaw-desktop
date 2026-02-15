@@ -70,8 +70,8 @@ body {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  object-fit: cover;
-  object-position: center center;
+  background-size: cover;
+  background-position: center center;
   position: absolute;
   z-index: 1;
 }

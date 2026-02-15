@@ -127,7 +127,7 @@ function initCharacterMode(mode) {
           // Set mini-orb avatar from sprite idle image
           const miniAvatar = document.getElementById('mini-orb-avatar');
           if (miniAvatar) {
-            miniAvatar.src = '../../assets/character/wanwan/avatar.png';
+            miniAvatar.style.backgroundImage = 'url(../../assets/character/wanwan/avatar.png)';
             miniAvatar.style.display = 'block';
             document.getElementById('mini-orb-canvas').style.display = 'none';
           }
