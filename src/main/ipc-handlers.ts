@@ -243,15 +243,16 @@ export function registerIpcHandlers(deps: {
       const win = BrowserWindow.getAllWindows()[0];
       win?.webContents.send('outfit:change', { status: 'loading', outfit: name });
 
-      // Run generate-outfit.py asynchronously
+      // Run generate-outfit.py on the SERVER via SSH
       const { spawn } = require('child_process');
-      const path = require('path');
-      const scriptPath = path.join(__dirname, '..', '..', 'scripts', 'generate-outfit.py');
+      const REMOTE_HOST = process.env.OPENCLAW_SSH_HOST || 'kaike@5.78.150.16';
+      const REMOTE_PROJECT = '~/.openclaw/workspace/openclaw-desktop';
+      const safeDesc = description.replace(/'/g, "'\\''"); // escape single quotes
+      const remoteCmd = `cd ${REMOTE_PROJECT} && PYTHONUNBUFFERED=1 uv run scripts/generate-outfit.py --outfit '${safeDesc}' --name '${name}'`;
 
-      console.log(`[Outfit] Generating: "${description}" as "${name}"...`);
+      console.log(`[Outfit] Generating on server: "${description}" as "${name}"...`);
 
-      const proc = spawn('uv', ['run', scriptPath, '--outfit', description, '--name', name], {
-        env: { ...process.env, PYTHONUNBUFFERED: '1' },
+      const proc = spawn('ssh', ['-o', 'StrictHostKeyChecking=no', REMOTE_HOST, remoteCmd], {
         stdio: ['ignore', 'pipe', 'pipe'],
       });
 
@@ -259,19 +260,51 @@ export function registerIpcHandlers(deps: {
       proc.stdout?.on('data', (d: Buffer) => { output += d.toString(); console.log('[Outfit]', d.toString().trim()); });
       proc.stderr?.on('data', (d: Buffer) => { console.error('[Outfit ERR]', d.toString().trim()); });
 
-      proc.on('close', (code: number) => {
+      proc.on('close', async (code: number) => {
         if (code === 0) {
-          const sprites = getOutfit(name);
-          if (sprites) {
+          // Sprites are on the server — fetch them via SSH + base64
+          console.log(`[Outfit] Generation done, fetching sprites from server...`);
+          try {
+            const { execSync } = require('child_process');
+            const remoteDir = `${REMOTE_PROJECT}/assets/character/wanwan/outfits/${name}`;
+            const fetchSprite = (file: string): string => {
+              return execSync(
+                `ssh -o StrictHostKeyChecking=no ${REMOTE_HOST} "base64 ${remoteDir}/${file}"`,
+                { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 }
+              ).replace(/\s/g, '');
+            };
+            const sprites = {
+              idle: fetchSprite('char-idle.png'),
+              blink: fetchSprite('char-blink.png'),
+              speaking: fetchSprite('char-speaking.png'),
+            };
+            // Also save locally for caching
+            const path = require('path');
+            const fs = require('fs');
+            const localDir = path.join(__dirname, '..', '..', 'assets', 'character', 'wanwan', 'outfits', name);
+            fs.mkdirSync(localDir, { recursive: true });
+            fs.writeFileSync(path.join(localDir, 'char-idle.png'), Buffer.from(sprites.idle, 'base64'));
+            fs.writeFileSync(path.join(localDir, 'char-blink.png'), Buffer.from(sprites.blink, 'base64'));
+            fs.writeFileSync(path.join(localDir, 'char-speaking.png'), Buffer.from(sprites.speaking, 'base64'));
+            // Copy metadata
+            try {
+              const metaJson = execSync(
+                `ssh -o StrictHostKeyChecking=no ${REMOTE_HOST} "cat ${remoteDir}/metadata.json"`,
+                { encoding: 'utf-8' }
+              );
+              fs.writeFileSync(path.join(localDir, 'metadata.json'), metaJson);
+            } catch {}
+
             setCurrentOutfit(name);
             win?.webContents.send('outfit:change', { status: 'ready', outfit: name, sprites });
             console.log(`[Outfit] Done: ${name}`);
-          } else {
-            win?.webContents.send('outfit:change', { status: 'error', outfit: name, error: 'Generation succeeded but sprites not found' });
+          } catch (fetchErr: any) {
+            console.error(`[Outfit] Fetch error:`, fetchErr.message);
+            win?.webContents.send('outfit:change', { status: 'error', outfit: name, error: 'Failed to fetch sprites from server' });
           }
         } else {
           win?.webContents.send('outfit:change', { status: 'error', outfit: name, error: `Generation failed (code ${code})` });
-          console.error(`[Outfit] Failed: ${name}, code=${code}`);
+          console.error(`[Outfit] Failed: ${name}, code=${code}\n${output}`);
         }
       });
 
