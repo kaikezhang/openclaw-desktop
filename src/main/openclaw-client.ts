@@ -76,21 +76,19 @@ export class OpenClawClient {
     this.deviceIdentity = loadOrCreateDeviceIdentity();
   }
 
-  /** Reset the session by sending /reset to the gateway. */
+  /** Reset the session via sessions.reset RPC (creates fresh sessionId on gateway). */
   async resetSession(): Promise<string> {
     console.log(`[OpenClaw] Resetting session: ${this.sessionKey}`);
     try {
       await this.ensureConnected();
-      // Send /new to start a fresh session (clears history + creates new session ID)
       const reqId = randomUUID();
       this.ws!.send(JSON.stringify({
         type: 'req',
         id: reqId,
-        method: 'chat.send',
+        method: 'sessions.reset',
         params: {
-          sessionKey: this.sessionKey,
-          idempotencyKey: randomUUID(),
-          message: '/new',
+          key: this.sessionKey,
+          reason: 'new',
         },
       }));
     } catch (e) {
