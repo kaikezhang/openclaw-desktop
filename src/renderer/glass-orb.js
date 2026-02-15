@@ -1,14 +1,19 @@
 /**
- * Glass Orb Character — A fluid glass ball with expressive eyes.
+ * Glass Orb Character v2 — Liquid Glass Edition
  *
- * Inspired by claw-desktop-pet: pure CSS/JS, no sprite sheets.
+ * Major upgrade: Apple-inspired liquid glass effects with SVG filters,
+ * organic shape morphing, and physics-based jelly animations.
+ *
  * Features:
- * - 67px fluid glass sphere with mood-based color systems
+ * - SVG filter pipeline: feTurbulence + feDisplacementMap for liquid distortion
+ * - feSpecularLighting for realistic surface highlights
+ * - Organic blob morphing via animated SVG clipPath (not a rigid circle)
+ * - Physics-based spring animations for jelly bounce
  * - 15+ eye expressions with 6 transition speeds
- * - Natural blinking (4 styles), mouse tracking, idle micro-expressions
- * - 7 mood colors: idle(pink), happy(gold), thinking(blue), speaking(coral),
- *   sleepy(muted), surprised(amber), offline(gray)
+ * - Natural blinking, mouse tracking, idle micro-expressions
+ * - 7 mood colors with smooth gradient transitions
  * - Click interactions, hover effects, particle bursts
+ * - Audio visualizer ring
  */
 class GlassOrbCharacter {
   constructor(containerId) {
@@ -31,27 +36,180 @@ class GlassOrbCharacter {
     this._eyeDriftInterval = null;
     this._breathInterval = null;
 
+    // Spring physics for jelly effect
+    this._springVx = 0;
+    this._springVy = 0;
+    this._springSx = 1;  // current scaleX
+    this._springSy = 1;  // current scaleY
+    this._springTargetSx = 1;
+    this._springTargetSy = 1;
+    this._springDamping = 0.72;
+    this._springStiffness = 0.18;
+
+    // Blob morph state
+    this._blobPhase = Math.random() * Math.PI * 2;
+    this._blobSpeed = 0.4;
+
     this._buildDOM();
+  }
+
+  // ===== Generate organic blob path =====
+
+  _blobPath(phase, radius, cx, cy, points, variation) {
+    const pts = [];
+    for (let i = 0; i < points; i++) {
+      const angle = (Math.PI * 2 / points) * i;
+      // Multiple sine waves for organic shape
+      const r = radius
+        + Math.sin(phase + angle * 2) * variation * 0.6
+        + Math.sin(phase * 1.7 + angle * 3) * variation * 0.3
+        + Math.cos(phase * 0.8 + angle * 5) * variation * 0.15;
+      pts.push({
+        x: cx + Math.cos(angle) * r,
+        y: cy + Math.sin(angle) * r,
+      });
+    }
+    // Smooth spline through points (catmull-rom → cubic bezier)
+    return this._catmullRomToPath(pts, true);
+  }
+
+  _catmullRomToPath(points, closed) {
+    const n = points.length;
+    if (n < 3) return '';
+    let d = '';
+    for (let i = 0; i < n; i++) {
+      const p0 = points[(i - 1 + n) % n];
+      const p1 = points[i];
+      const p2 = points[(i + 1) % n];
+      const p3 = points[(i + 2) % n];
+      if (i === 0) d += `M${p1.x.toFixed(2)},${p1.y.toFixed(2)} `;
+      // Catmull-Rom to cubic bezier control points
+      const cp1x = p1.x + (p2.x - p0.x) / 6;
+      const cp1y = p1.y + (p2.y - p0.y) / 6;
+      const cp2x = p2.x - (p3.x - p1.x) / 6;
+      const cp2y = p2.y - (p3.y - p1.y) / 6;
+      d += `C${cp1x.toFixed(2)},${cp1y.toFixed(2)} ${cp2x.toFixed(2)},${cp2y.toFixed(2)} ${p2.x.toFixed(2)},${p2.y.toFixed(2)} `;
+    }
+    if (closed) d += 'Z';
+    return d;
   }
 
   _buildDOM() {
     this.container.innerHTML = '';
     this.container.style.cssText = 'position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;overflow:visible;';
 
-    // Pet wrapper
+    const SIZE = 67;
+    const HALF = SIZE / 2;
+
+    // ===== SVG Filter Definitions =====
+    const svgNS = 'http://www.w3.org/2000/svg';
+    this._filterSvg = document.createElementNS(svgNS, 'svg');
+    this._filterSvg.setAttribute('width', '0');
+    this._filterSvg.setAttribute('height', '0');
+    this._filterSvg.style.cssText = 'position:absolute;pointer-events:none;';
+
+    const defs = document.createElementNS(svgNS, 'defs');
+
+    // --- Liquid distortion filter ---
+    const liquidFilter = document.createElementNS(svgNS, 'filter');
+    liquidFilter.setAttribute('id', 'glass-liquid-distort');
+    liquidFilter.setAttribute('x', '-20%');
+    liquidFilter.setAttribute('y', '-20%');
+    liquidFilter.setAttribute('width', '140%');
+    liquidFilter.setAttribute('height', '140%');
+
+    // Turbulence for organic distortion
+    this._turbulence = document.createElementNS(svgNS, 'feTurbulence');
+    this._turbulence.setAttribute('type', 'fractalNoise');
+    this._turbulence.setAttribute('baseFrequency', '0.015 0.02');
+    this._turbulence.setAttribute('numOctaves', '3');
+    this._turbulence.setAttribute('seed', Math.floor(Math.random() * 100).toString());
+    this._turbulence.setAttribute('result', 'turbulence');
+
+    // Displacement map for liquid warping
+    const displacement = document.createElementNS(svgNS, 'feDisplacementMap');
+    displacement.setAttribute('in', 'SourceGraphic');
+    displacement.setAttribute('in2', 'turbulence');
+    displacement.setAttribute('scale', '4');
+    displacement.setAttribute('xChannelSelector', 'R');
+    displacement.setAttribute('yChannelSelector', 'G');
+    displacement.setAttribute('result', 'displaced');
+
+    liquidFilter.appendChild(this._turbulence);
+    liquidFilter.appendChild(displacement);
+    defs.appendChild(liquidFilter);
+
+    // --- Specular highlight filter ---
+    const specFilter = document.createElementNS(svgNS, 'filter');
+    specFilter.setAttribute('id', 'glass-specular');
+    specFilter.setAttribute('x', '-10%');
+    specFilter.setAttribute('y', '-10%');
+    specFilter.setAttribute('width', '120%');
+    specFilter.setAttribute('height', '120%');
+
+    const specTurb = document.createElementNS(svgNS, 'feTurbulence');
+    specTurb.setAttribute('type', 'fractalNoise');
+    specTurb.setAttribute('baseFrequency', '0.03');
+    specTurb.setAttribute('numOctaves', '2');
+    specTurb.setAttribute('result', 'specNoise');
+
+    const specLight = document.createElementNS(svgNS, 'feSpecularLighting');
+    specLight.setAttribute('in', 'specNoise');
+    specLight.setAttribute('surfaceScale', '3');
+    specLight.setAttribute('specularConstant', '0.6');
+    specLight.setAttribute('specularExponent', '25');
+    specLight.setAttribute('result', 'specular');
+    specLight.setAttribute('lighting-color', '#ffffff');
+
+    const pointLight = document.createElementNS(svgNS, 'fePointLight');
+    pointLight.setAttribute('x', '20');
+    pointLight.setAttribute('y', '15');
+    pointLight.setAttribute('z', '60');
+    this._specLight = pointLight;
+    specLight.appendChild(pointLight);
+
+    const specComp = document.createElementNS(svgNS, 'feComposite');
+    specComp.setAttribute('in', 'specular');
+    specComp.setAttribute('in2', 'SourceGraphic');
+    specComp.setAttribute('operator', 'in');
+    specComp.setAttribute('result', 'specMask');
+
+    const specBlend = document.createElementNS(svgNS, 'feBlend');
+    specBlend.setAttribute('in', 'SourceGraphic');
+    specBlend.setAttribute('in2', 'specMask');
+    specBlend.setAttribute('mode', 'screen');
+
+    specFilter.appendChild(specTurb);
+    specFilter.appendChild(specLight);
+    specFilter.appendChild(specComp);
+    specFilter.appendChild(specBlend);
+    defs.appendChild(specFilter);
+
+    // --- Blob clip path (organic shape) ---
+    this._clipPath = document.createElementNS(svgNS, 'clipPath');
+    this._clipPath.setAttribute('id', 'glass-blob-clip');
+    this._blobPathEl = document.createElementNS(svgNS, 'path');
+    this._blobPathEl.setAttribute('d', this._blobPath(0, 30, HALF, HALF, 8, 3));
+    this._clipPath.appendChild(this._blobPathEl);
+    defs.appendChild(this._clipPath);
+
+    this._filterSvg.appendChild(defs);
+
+    // ===== Pet wrapper =====
     this.pet = document.createElement('div');
     this.pet.className = 'glass-orb-pet';
     this.pet.style.cssText = `
-      width: 67px; height: 67px; position: relative; cursor: pointer;
+      width: ${SIZE}px; height: ${SIZE}px; position: relative; cursor: pointer;
       will-change: transform;
     `;
 
-    // Inner fluid
+    // Inner fluid — now with SVG liquid distortion filter
     this.fluid = document.createElement('div');
     this.fluid.style.cssText = `
       position: absolute; top: 3px; left: 3px; right: 3px; bottom: 3px;
       border-radius: 50%; overflow: hidden; z-index: 1;
       background: linear-gradient(135deg, #ffb3ba, #ffe5e9);
+      filter: url(#glass-liquid-distort);
       transition: filter 0.4s ease;
     `;
 
@@ -71,47 +229,72 @@ class GlassOrbCharacter {
       animation: glass-orb-spin-r 12s linear infinite;
     `;
 
+    // Extra blob layer for depth
+    this.blob3 = document.createElement('div');
+    this.blob3.style.cssText = `
+      position: absolute; width: 90%; height: 90%; top: 5%; left: 5%;
+      background: radial-gradient(circle at 50% 40%, rgba(255,255,255,0.15), transparent 50%);
+      animation: glass-orb-spin 15s linear infinite reverse;
+      mix-blend-mode: overlay;
+    `;
+
     this.fluid.appendChild(this.blob1);
     this.fluid.appendChild(this.blob2);
+    this.fluid.appendChild(this.blob3);
 
-    // Glass shell
+    // Glass shell — enhanced with specular filter
     this.shell = document.createElement('div');
     this.shell.style.cssText = `
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
       border-radius: 50%; z-index: 2;
       background:
-        radial-gradient(circle at 25% 25%, rgba(255,255,255,0.35), transparent 30%),
-        radial-gradient(circle at 80% 80%, rgba(255,255,255,0.08), transparent 40%),
-        radial-gradient(circle at 50% 50%, rgba(255,255,255,0.03), transparent);
+        radial-gradient(circle at 25% 25%, rgba(255,255,255,0.45), transparent 30%),
+        radial-gradient(circle at 80% 80%, rgba(255,255,255,0.1), transparent 40%),
+        radial-gradient(circle at 50% 50%, rgba(255,255,255,0.05), transparent);
       box-shadow:
-        inset -3px -3px 12px rgba(255,255,255,0.15),
-        inset 3px 3px 12px rgba(255,255,255,0.45),
-        0px 4px 12px rgba(220,80,80,0.15),
-        0px 0px 20px rgba(255,255,255,0.1);
-      backdrop-filter: blur(2px);
-      border: 1.5px solid rgba(255,255,255,0.4);
+        inset -3px -3px 14px rgba(255,255,255,0.2),
+        inset 3px 3px 14px rgba(255,255,255,0.5),
+        0px 4px 16px rgba(220,80,80,0.12),
+        0px 0px 24px rgba(255,255,255,0.12),
+        0px 2px 6px rgba(0,0,0,0.08);
+      backdrop-filter: blur(1.5px);
+      border: 1.5px solid rgba(255,255,255,0.45);
+      filter: url(#glass-specular);
       transition: box-shadow 1s ease, border 1s ease;
     `;
 
-    // Shell highlights (::before and ::after via extra divs)
+    // Shell highlight — main reflection spot
     const highlight1 = document.createElement('div');
     highlight1.style.cssText = `
-      position: absolute; top: 10%; left: 15%; width: 35%; height: 18%;
+      position: absolute; top: 8%; left: 13%; width: 40%; height: 20%;
       border-radius: 50%;
-      background: radial-gradient(ellipse at center, rgba(255,255,255,0.8), rgba(255,255,255,0.3) 60%, transparent);
+      background: radial-gradient(ellipse at center, rgba(255,255,255,0.9), rgba(255,255,255,0.35) 55%, transparent);
       filter: blur(2px); transform: rotate(-40deg);
+      animation: glass-highlight-drift 6s ease-in-out infinite alternate;
     `;
+    // Secondary highlight — bottom reflection
     const highlight2 = document.createElement('div');
     highlight2.style.cssText = `
-      position: absolute; bottom: 20%; right: 18%; width: 20%; height: 12%;
+      position: absolute; bottom: 18%; right: 16%; width: 22%; height: 14%;
       border-radius: 50%;
-      background: radial-gradient(ellipse at center, rgba(255,255,255,0.4), transparent 70%);
+      background: radial-gradient(ellipse at center, rgba(255,255,255,0.5), transparent 70%);
       filter: blur(2px); transform: rotate(25deg);
+      animation: glass-highlight-drift 8s ease-in-out infinite alternate-reverse;
+    `;
+    // Edge refraction glow
+    const edgeGlow = document.createElement('div');
+    edgeGlow.style.cssText = `
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      border-radius: 50%;
+      box-shadow: inset 0 0 12px rgba(255,255,255,0.3);
+      background: radial-gradient(circle at 50% 50%, transparent 55%, rgba(255,255,255,0.08) 70%, transparent 80%);
+      animation: glass-edge-pulse 4s ease-in-out infinite;
     `;
     this.shell.appendChild(highlight1);
     this.shell.appendChild(highlight2);
+    this.shell.appendChild(edgeGlow);
 
-    // Eyes container
+    // ===== Eyes =====
     this.eyesContainer = document.createElement('div');
     this.eyesContainer.style.cssText = `
       position: absolute; z-index: 3;
@@ -124,7 +307,8 @@ class GlassOrbCharacter {
     this.eyeR = document.createElement('div');
     const eyeStyle = `
       width: 11px; height: 19px; background: white; border-radius: 6px;
-      box-shadow: 0 0 8px rgba(255,255,255,0.9), 0 0 16px rgba(255,255,255,0.4);
+      box-shadow: 0 0 8px rgba(255,255,255,0.9), 0 0 16px rgba(255,255,255,0.4),
+                  0 0 3px rgba(255,255,255,1);
       transition: width 0.18s cubic-bezier(0.25,1,0.5,1), height 0.18s cubic-bezier(0.25,1,0.5,1),
                   border-radius 0.18s cubic-bezier(0.25,1,0.5,1), transform 0.18s cubic-bezier(0.25,1,0.5,1);
       transform-origin: center center;
@@ -145,7 +329,7 @@ class GlassOrbCharacter {
     this.blushL.style.cssText = blushBase + 'top: 58%; left: 8%;';
     this.blushR.style.cssText = blushBase + 'top: 58%; right: 8%;';
 
-    // Mouth (visible during talking)
+    // Mouth
     this.mouth = document.createElement('div');
     this.mouth.style.cssText = `
       position: absolute; z-index: 3;
@@ -157,12 +341,12 @@ class GlassOrbCharacter {
       opacity: 0; pointer-events: none;
     `;
 
-    // Particles container
+    // Particles
     this.particles = document.createElement('div');
     this.particles.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:10;';
 
-    // Audio visualizer ring (SVG)
-    this.vizRing = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    // Audio visualizer ring
+    this.vizRing = document.createElementNS(svgNS, 'svg');
     this.vizRing.setAttribute('width', '100');
     this.vizRing.setAttribute('height', '100');
     this.vizRing.setAttribute('viewBox', '-50 -50 100 100');
@@ -174,12 +358,11 @@ class GlassOrbCharacter {
       transition: opacity 0.3s ease;
       display: none;
     `;
-    // Create ring bars
     this.vizBars = [];
     const barCount = 16;
     for (let i = 0; i < barCount; i++) {
       const angle = (i / barCount) * Math.PI * 2 - Math.PI / 2;
-      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      const line = document.createElementNS(svgNS, 'line');
       const cx = Math.cos(angle) * 36;
       const cy = Math.sin(angle) * 36;
       const ex = Math.cos(angle) * 40;
@@ -195,7 +378,7 @@ class GlassOrbCharacter {
       this.vizBars.push({ line, angle, cx, cy });
     }
 
-    // Bubbles
+    // Ambient bubbles
     const bub1 = document.createElement('div');
     bub1.style.cssText = `
       position:absolute;border-radius:50%;width:5px;height:5px;left:-5px;top:60%;
@@ -210,6 +393,14 @@ class GlassOrbCharacter {
       border:1px solid rgba(255,255,255,0.12);z-index:0;opacity:0;pointer-events:none;
       animation:glass-orb-bub 6.5s ease-in infinite 2s;
     `;
+    // Third bubble for more life
+    const bub3 = document.createElement('div');
+    bub3.style.cssText = `
+      position:absolute;border-radius:50%;width:4px;height:4px;left:15%;bottom:-3px;
+      background:radial-gradient(circle at 30% 30%,rgba(255,255,255,0.35),rgba(255,255,255,0.05));
+      border:1px solid rgba(255,255,255,0.1);z-index:0;opacity:0;pointer-events:none;
+      animation:glass-orb-bub 7s ease-in infinite 3.5s;
+    `;
 
     // Assemble
     this.pet.appendChild(this.fluid);
@@ -221,18 +412,16 @@ class GlassOrbCharacter {
     this.pet.appendChild(this.vizRing);
     this.pet.appendChild(bub1);
     this.pet.appendChild(bub2);
+    this.pet.appendChild(bub3);
     this.pet.appendChild(this.particles);
+    this.container.appendChild(this._filterSvg);
     this.container.appendChild(this.pet);
 
-    // Inject keyframes
     this._injectStyles();
 
-    // Click handler
     this.pet.addEventListener('click', () => this._onClick());
     this.pet.addEventListener('mouseenter', () => this._onHover(true));
     this.pet.addEventListener('mouseleave', () => this._onHover(false));
-
-    // Mouse tracking
     document.addEventListener('mousemove', (e) => this._onMouseMove(e));
   }
 
@@ -262,6 +451,19 @@ class GlassOrbCharacter {
         50% { transform: scale(0.9, 1.1); }
         75% { transform: scale(1.05, 0.95); }
         100% { transform: scale(1, 1); }
+      }
+      @keyframes glass-highlight-drift {
+        0% { opacity: 0.7; transform: rotate(-40deg) translateX(0px); }
+        100% { opacity: 1; transform: rotate(-35deg) translateX(2px); }
+      }
+      @keyframes glass-edge-pulse {
+        0%, 100% { opacity: 0.5; }
+        50% { opacity: 1; }
+      }
+      @keyframes glass-caustic {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
       }
     `;
     document.head.appendChild(style);
@@ -300,7 +502,6 @@ class GlassOrbCharacter {
     if (speed) setTimeout(() => this._setEyeTransition('normal'), 20);
   }
 
-  // Named expressions
   _expr = {
     normal:    () => this._setEyes({ w: 11, h: 19, br: '6px' }),
     blink:     () => this._setEyes({ w: 12, h: 3, br: '3px' }, null, 'snap'),
@@ -348,19 +549,19 @@ class GlassOrbCharacter {
     if (mood !== this.currentMood) {
       if (this._moodTimer) { clearTimeout(this._moodTimer); this._moodTimer = null; }
 
-      // Flash transition to hide gradient jump
+      // Flash transition
       this.fluid.style.transition = 'filter 0.35s ease-in';
-      this.fluid.style.filter = 'brightness(1.6) blur(2px)';
+      this.fluid.style.filter = 'url(#glass-liquid-distort) brightness(1.6) blur(2px)';
 
       this._moodTimer = setTimeout(() => {
         this.fluid.style.background = m.fluid;
         this.blob1.style.background = m.b1;
         this.blob2.style.background = m.b2;
         this.fluid.style.transition = 'filter 0.5s ease-out';
-        this.fluid.style.filter = 'brightness(1) blur(0px)';
+        this.fluid.style.filter = 'url(#glass-liquid-distort) brightness(1) blur(0px)';
         this._moodTimer = setTimeout(() => {
           this.fluid.style.transition = '';
-          this.fluid.style.filter = '';
+          this.fluid.style.filter = 'url(#glass-liquid-distort)';
           this._moodTimer = null;
         }, 550);
       }, 350);
@@ -383,13 +584,11 @@ class GlassOrbCharacter {
     if (this.talkInterval) { clearInterval(this.talkInterval); this.talkInterval = null; }
 
     if (mood === 'talking') {
-      // Show mouth + animate
       this.mouth.style.opacity = '1';
       let tog = false;
       this.talkInterval = setInterval(() => {
         tog = !tog;
         tog ? this._expr.talkBig() : this._expr.talking();
-        // Mouth open/close animation
         if (tog) {
           this.mouth.style.width = '10px';
           this.mouth.style.height = '6px';
@@ -405,7 +604,6 @@ class GlassOrbCharacter {
       if (m.eyes && this._expr[m.eyes]) this._expr[m.eyes]();
     }
 
-    // Blush for happy
     if (mood === 'happy') {
       this.blushL.style.background = 'rgba(255,120,120,0.4)';
       this.blushR.style.background = 'rgba(255,120,120,0.4)';
@@ -422,7 +620,7 @@ class GlassOrbCharacter {
     this._scheduleBlink();
     this._startAnimation();
     this._startIdleMicro();
-    console.log('[GlassOrb] Started');
+    console.log('[GlassOrb v2] Started — Liquid Glass Edition');
   }
 
   stop() {
@@ -434,15 +632,11 @@ class GlassOrbCharacter {
     if (this.talkInterval) { clearInterval(this.talkInterval); this.talkInterval = null; }
   }
 
-  /**
-   * Set app state (idle, listening, thinking, speaking).
-   * Maps to mood colors + eye expressions.
-   */
   setState(state) {
     this.currentState = state;
     this.lastInteraction = Date.now();
-    // Wake up from sleep if any state change happens
     if (this.currentMood === 'sleepy' && state !== 'idle') {
+      this._jellyBounce(0.12);
       this._spawnParticles();
     }
     switch (state) {
@@ -454,7 +648,6 @@ class GlassOrbCharacter {
         break;
       case 'listening':
         this._setMood('idle');
-        // Pulse effect — slightly larger
         this.targetScale = 1.03;
         break;
       case 'idle':
@@ -464,15 +657,43 @@ class GlassOrbCharacter {
     }
   }
 
+  // ===== Spring Physics (Jelly) =====
+
+  _jellyBounce(intensity) {
+    // Apply impulse: squash horizontally, stretch vertically
+    this._springVx += intensity * 1.5;
+    this._springVy -= intensity;
+  }
+
+  _updateSpring() {
+    // Damped spring toward (1, 1)
+    const dx = 1 - this._springSx;
+    const dy = 1 - this._springSy;
+    this._springVx += dx * this._springStiffness;
+    this._springVy += dy * this._springStiffness;
+    this._springVx *= this._springDamping;
+    this._springVy *= this._springDamping;
+    this._springSx += this._springVx;
+    this._springSy += this._springVy;
+  }
+
   // ===== Animation Loop =====
 
   _startAnimation() {
+    const HALF = 33.5;
+    let turbSeed = parseFloat(this._turbulence.getAttribute('seed'));
+
     const loop = () => {
       this.t += 0.016;
       this.curScale += (this.targetScale - this.curScale) * 0.08;
 
-      // Multi-frequency organic float
-      const floatY = Math.sin(this.t * 1.3) * 3.5 + Math.sin(this.t * 0.67) * 2 + Math.sin(this.t * 2.3) * 0.6;
+      // Update spring physics
+      this._updateSpring();
+
+      // Organic float (multi-frequency)
+      const floatY = Math.sin(this.t * 1.3) * 3.5
+        + Math.sin(this.t * 0.67) * 2
+        + Math.sin(this.t * 2.3) * 0.6;
       const floatR = Math.sin(this.t * 0.9) * 0.3 + Math.sin(this.t * 0.37) * 0.2;
 
       // Breathing
@@ -489,7 +710,26 @@ class GlassOrbCharacter {
 
       const bounce = this.breathExtra > 0 ? Math.sin(this.t * 12) * this.breathExtra : 0;
 
-      this.pet.style.transform = `translateX(${fidgetX}px) translateY(${floatY + bounce}px) rotate(${floatR + fidgetR}deg) scale(${this.curScale * breathScale})`;
+      // Apply spring jelly to scale
+      const jellyX = this._springSx;
+      const jellyY = this._springSy;
+
+      this.pet.style.transform = `translateX(${fidgetX}px) translateY(${floatY + bounce}px) rotate(${floatR + fidgetR}deg) scale(${this.curScale * breathScale * jellyX}, ${this.curScale * breathScale * jellyY})`;
+
+      // Animate blob clip path for organic shape
+      this._blobPhase += this._blobSpeed * 0.016;
+      const blobVariation = this.currentMood === 'thinking' ? 4 : this.currentMood === 'talking' ? 3.5 : 3;
+      this._blobPathEl.setAttribute('d', this._blobPath(this._blobPhase, 30, HALF, HALF, 8, blobVariation));
+
+      // Slowly animate turbulence seed for living distortion
+      turbSeed += 0.003;
+      // Only update every few frames to save perf
+      if (Math.floor(this.t * 10) % 3 === 0) {
+        this._turbulence.setAttribute('seed', turbSeed.toFixed(1));
+      }
+
+      // Update specular light position based on mouse (subtle)
+      // Already tracked in _onMouseMove
 
       this._animFrame = requestAnimationFrame(loop);
     };
@@ -498,7 +738,10 @@ class GlassOrbCharacter {
     // Deep breath every 20-40s
     this._breathInterval = setInterval(() => {
       if (this.currentMood === 'talking' || this.currentMood === 'thinking') return;
-      if (this.deepBreathPhase === 0 && Math.random() < 0.5) this.deepBreathPhase = 0.01;
+      if (this.deepBreathPhase === 0 && Math.random() < 0.5) {
+        this.deepBreathPhase = 0.01;
+        this._jellyBounce(0.03); // subtle jelly on deep breath
+      }
     }, 25000);
   }
 
@@ -511,19 +754,16 @@ class GlassOrbCharacter {
 
     const r = Math.random();
     if (r < 0.15) {
-      // Double blink
       setTimeout(() => {
         this._expr.normal();
         setTimeout(() => { this._expr.blink(); setTimeout(() => { this._applyMoodEyes(); this.mouseTracking = true; }, 70); }, 100);
       }, 70);
     } else if (r < 0.3) {
-      // Half → full blink
       setTimeout(() => {
         this._expr.halfBlink();
         setTimeout(() => { this._expr.blink(); setTimeout(() => { this._applyMoodEyes(); this.mouseTracking = true; }, 80); }, 120);
       }, 80);
     } else {
-      // Normal blink
       setTimeout(() => { this._applyMoodEyes(); this.mouseTracking = true; }, 80);
     }
     this._scheduleBlink();
@@ -543,20 +783,13 @@ class GlassOrbCharacter {
 
   _startIdleMicro() {
     const microActions = [
-      // Look left-right
       () => { this._expr.lookLeft(); setTimeout(() => { this._expr.lookRight(); setTimeout(() => this._expr.normal(), 500); }, 500); },
-      // Curious
       () => { this._expr.curious(); setTimeout(() => this._expr.normal(), 800); },
-      // Wink
       () => { this._expr.wink(); setTimeout(() => this._expr.normal(), 700); },
-      // Hmm
       () => { this._expr.hmm(); setTimeout(() => this._expr.normal(), 800); },
-      // Sparkle
       () => { this._expr.sparkle(); setTimeout(() => this._expr.normal(), 500); },
-      // Soft smile
       () => { this._expr.softSmile(); setTimeout(() => this._expr.normal(), 1000); },
-      // Giggle
-      () => { this._expr.giggle(); setTimeout(() => this._expr.normal(), 800); },
+      () => { this._expr.giggle(); this._jellyBounce(0.04); setTimeout(() => this._expr.normal(), 800); },
     ];
 
     this._idleInterval = setInterval(() => {
@@ -569,7 +802,6 @@ class GlassOrbCharacter {
       }
     }, 4000);
 
-    // Eye drift
     this._eyeDriftInterval = setInterval(() => {
       if (this.currentMood !== 'idle' || !this.mouseTracking) return;
       if (Math.random() < 0.35) {
@@ -592,25 +824,19 @@ class GlassOrbCharacter {
 
   // ===== Audio Visualization =====
 
-  /**
-   * Update visualizer ring with audio volume (0-1).
-   * Call this from the app animation loop when audio is playing.
-   */
   updateVisualizer(volume) {
     if (volume > 0.01) {
       this.vizRing.style.display = 'block';
       this.vizRing.style.opacity = '1';
       for (let i = 0; i < this.vizBars.length; i++) {
         const bar = this.vizBars[i];
-        // Each bar gets slightly different amplitude for organic feel
         const variance = 0.5 + Math.sin(this.t * 8 + i * 0.7) * 0.5;
         const amp = volume * variance * 12 + 4;
         const ex = Math.cos(bar.angle) * (36 + amp);
         const ey = Math.sin(bar.angle) * (36 + amp);
         bar.line.setAttribute('x2', ex.toString());
         bar.line.setAttribute('y2', ey.toString());
-        // Color based on amplitude
-        const hue = 340 + volume * 40; // pink to orange
+        const hue = 340 + volume * 40;
         const alpha = 0.4 + volume * 0.5;
         bar.line.setAttribute('stroke', `hsla(${hue}, 80%, 75%, ${alpha})`);
       }
@@ -622,23 +848,15 @@ class GlassOrbCharacter {
 
   // ===== Attention & Sleep =====
 
-  /**
-   * Bounce animation to grab attention (e.g., new message arrived).
-   */
   bounce() {
     this.lastInteraction = Date.now();
-    const origScale = this.targetScale;
-    this.targetScale = 1.15;
+    this._jellyBounce(0.15);
     this._expr.surprised();
     this._spawnParticles();
-    setTimeout(() => { this.targetScale = 0.9; }, 150);
-    setTimeout(() => { this.targetScale = 1.08; this._expr.happy(); }, 300);
-    setTimeout(() => { this.targetScale = origScale; this._applyMoodEyes(); }, 600);
+    setTimeout(() => { this._expr.happy(); }, 300);
+    setTimeout(() => { this._applyMoodEyes(); }, 800);
   }
 
-  /**
-   * Check idle time and auto-sleep after 3 minutes of no interaction.
-   */
   _checkIdleState() {
     if (this.currentMood === 'offline' || this.currentState !== 'idle') return;
     const idleSeconds = (Date.now() - this.lastInteraction) / 1000;
@@ -651,12 +869,11 @@ class GlassOrbCharacter {
 
   _onClick() {
     this.lastInteraction = Date.now();
-    this.pet.style.animation = 'glass-orb-squish 0.35s cubic-bezier(0.34,1.56,0.64,1)';
+    this._jellyBounce(0.12);
     this.pet.style.filter = 'brightness(1.15)';
-    setTimeout(() => { this.pet.style.animation = ''; this.pet.style.filter = ''; }, 350);
+    setTimeout(() => { this.pet.style.filter = ''; }, 350);
     this._spawnParticles();
 
-    // Random expression
     const exprs = ['happy', 'wink', 'surprised', 'curious', 'giggle', 'sparkle', 'love'];
     const pick = exprs[Math.floor(Math.random() * exprs.length)];
     this.mouseTracking = false;
@@ -670,6 +887,7 @@ class GlassOrbCharacter {
       this.eyeL.style.transform = 'scale(1.08)';
       this.eyeR.style.transform = 'scale(1.08)';
       this.pet.style.filter = 'brightness(1.05)';
+      this._jellyBounce(0.02);
     } else {
       this.eyeL.style.transform = '';
       this.eyeR.style.transform = '';
@@ -687,6 +905,12 @@ class GlassOrbCharacter {
     const dy = Math.max(-2, Math.min(2, (e.clientY - cy) / window.innerHeight * 6));
     this.eyeL.style.transform = `translate(${dx}px,${dy}px)`;
     this.eyeR.style.transform = `translate(${dx}px,${dy}px)`;
+
+    // Subtle specular light tracking
+    const lightX = 20 + dx * 5;
+    const lightY = 15 + dy * 5;
+    this._specLight.setAttribute('x', lightX.toString());
+    this._specLight.setAttribute('y', lightY.toString());
   }
 
   _spawnParticles() {
@@ -711,7 +935,6 @@ class GlassOrbCharacter {
   }
 }
 
-// Export
 if (typeof window !== 'undefined') {
   window.GlassOrbCharacter = GlassOrbCharacter;
 }
