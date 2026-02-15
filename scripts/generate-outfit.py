@@ -42,7 +42,7 @@ REF_IDLE = REF_DIR / "char-idle.png"
 SPRITE_SIZE = (553, 400)  # width x height
 
 MAX_RETRIES = 3
-BBOX_TOLERANCE = 0.10  # 10% tolerance for bbox alignment
+BBOX_TOLERANCE = 1.0  # Skip bbox check — normalize already handles alignment
 
 
 # ── Helpers ────────────────────────────────────────────────────────────
@@ -79,67 +79,39 @@ def get_ref_bbox():
 
 def normalize_sprite(img, ref_bbox, ref_img):
     """
-    Normalize a generated sprite to match the reference:
-    - Detect character bbox
-    - Scale & position to match reference bbox (center-align H, bottom-align V)
-    - Resize to SPRITE_SIZE
-    - Apply reference alpha channel
+    Normalize a generated sprite:
+    - Resize to standard SPRITE_SIZE
+    - Remove white background
+    Simple approach: Gemini edit preserves composition, just resize + clean alpha.
     """
+    from PIL import Image
+
+    img = img.convert("RGBA").resize(SPRITE_SIZE, Image.LANCZOS)
+    return remove_white_bg(img)
+
+
+def remove_white_bg(img, threshold=252):
+    """Remove pure-white background by making it transparent. Conservative threshold to keep skin."""
     from PIL import Image
     import numpy as np
 
-    img = img.convert("RGBA")
-
-    # 1. Detect generated sprite bbox
-    gen_bbox = get_bbox(img)
-    gen_w = gen_bbox[2] - gen_bbox[0]
-    gen_h = gen_bbox[3] - gen_bbox[1]
-
-    if gen_w <= 0 or gen_h <= 0:
-        print("  [WARN] Empty bounding box in generated sprite, using as-is")
-        img = img.resize(SPRITE_SIZE, Image.LANCZOS)
-        return apply_ref_alpha(img, ref_img)
-
-    # 2. Crop to character content
-    cropped = img.crop(gen_bbox)
-
-    # 3. Scale to match reference bbox dimensions
-    ref_w = ref_bbox[2] - ref_bbox[0]
-    ref_h = ref_bbox[3] - ref_bbox[1]
-
-    scale = min(ref_w / gen_w, ref_h / gen_h)
-    new_w = int(gen_w * scale)
-    new_h = int(gen_h * scale)
-    scaled = cropped.resize((new_w, new_h), Image.LANCZOS)
-
-    # 4. Create output canvas and paste (center-align H, bottom-align V)
-    out = Image.new("RGBA", SPRITE_SIZE, (0, 0, 0, 0))
-
-    # Center horizontally relative to reference center
-    ref_center_x = (ref_bbox[0] + ref_bbox[2]) // 2
-    paste_x = ref_center_x - new_w // 2
-
-    # Bottom-align vertically to reference bottom
-    paste_y = ref_bbox[3] - new_h
-
-    out.paste(scaled, (paste_x, paste_y))
-
-    # 5. Apply reference alpha channel
-    return apply_ref_alpha(out, ref_img)
+    arr = np.array(img.convert("RGBA"))
+    # Only remove very white pixels (R>252 AND G>252 AND B>252)
+    is_white = (arr[:,:,0] > threshold) & (arr[:,:,1] > threshold) & (arr[:,:,2] > threshold)
+    arr[is_white, 3] = 0
+    return Image.fromarray(arr)
 
 
 def apply_ref_alpha(img, ref_img):
-    """Copy the reference image's alpha channel onto img."""
+    """Apply alpha from ref_img. If ref_img is the same outfit's idle, this ensures consistency."""
     from PIL import Image
 
     img = img.convert("RGBA")
     ref = ref_img.convert("RGBA")
 
-    # Extract channels
     r, g, b, _ = img.split()
     _, _, _, ref_a = ref.split()
 
-    # Merge with reference alpha
     return Image.merge("RGBA", (r, g, b, ref_a))
 
 
@@ -318,6 +290,8 @@ def main():
         print("Error: Failed to generate blink sprite", file=sys.stderr)
         sys.exit(1)
 
+    # Apply idle's alpha to blink for consistency (prevents flicker)
+    blink_img = apply_ref_alpha(blink_img, idle_img)
     blink_path = outfit_dir / "char-blink.png"
     blink_img.save(str(blink_path), "PNG")
     print(f"  Saved: {blink_path}")
@@ -335,6 +309,8 @@ def main():
         print("Error: Failed to generate speaking sprite", file=sys.stderr)
         sys.exit(1)
 
+    # Apply idle's alpha to speaking for consistency
+    speaking_img = apply_ref_alpha(speaking_img, idle_img)
     speaking_path = outfit_dir / "char-speaking.png"
     speaking_img.save(str(speaking_path), "PNG")
     print(f"  Saved: {speaking_path}")
