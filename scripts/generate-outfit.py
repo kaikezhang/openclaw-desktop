@@ -90,29 +90,74 @@ def normalize_sprite(img, ref_bbox, ref_img):
     return remove_white_bg(img)
 
 
-def remove_white_bg(img, threshold=252):
-    """Remove pure-white background by making it transparent. Conservative threshold to keep skin."""
+def remove_white_bg(img, threshold=245):
+    """Remove white/light-gray background using flood fill from edges.
+    This preserves the full character silhouette regardless of outfit size."""
     from PIL import Image
     import numpy as np
+    from collections import deque
 
     arr = np.array(img.convert("RGBA"))
-    # Only remove very white pixels (R>252 AND G>252 AND B>252)
-    is_white = (arr[:,:,0] > threshold) & (arr[:,:,1] > threshold) & (arr[:,:,2] > threshold)
-    arr[is_white, 3] = 0
+    h, w = arr.shape[:2]
+
+    # Mark background pixels: start from edges and flood-fill inward
+    visited = np.zeros((h, w), dtype=bool)
+    is_bg = np.zeros((h, w), dtype=bool)
+
+    def is_light(y, x):
+        r, g, b = int(arr[y, x, 0]), int(arr[y, x, 1]), int(arr[y, x, 2])
+        return r > threshold and g > threshold and b > threshold
+
+    # Seed from all edge pixels that are white-ish
+    queue = deque()
+    for x in range(w):
+        for y in [0, h - 1]:
+            if is_light(y, x):
+                queue.append((y, x))
+                visited[y, x] = True
+    for y in range(h):
+        for x in [0, w - 1]:
+            if is_light(y, x) and not visited[y, x]:
+                queue.append((y, x))
+                visited[y, x] = True
+
+    # BFS flood fill
+    while queue:
+        cy, cx = queue.popleft()
+        is_bg[cy, cx] = True
+        for dy, dx in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+            ny, nx = cy + dy, cx + dx
+            if 0 <= ny < h and 0 <= nx < w and not visited[ny, nx] and is_light(ny, nx):
+                visited[ny, nx] = True
+                queue.append((ny, nx))
+
+    # Make background transparent
+    arr[is_bg, 3] = 0
     return Image.fromarray(arr)
 
 
 def apply_ref_alpha(img, ref_img):
-    """Apply alpha from ref_img. If ref_img is the same outfit's idle, this ensures consistency."""
+    """For blink/speaking consistency: use the UNION of ref alpha and own alpha.
+    This keeps the ref outline but also preserves any new areas (larger outfits)."""
     from PIL import Image
+    import numpy as np
 
     img = img.convert("RGBA")
     ref = ref_img.convert("RGBA")
 
-    r, g, b, _ = img.split()
-    _, _, _, ref_a = ref.split()
+    img_arr = np.array(img)
+    ref_arr = np.array(ref)
 
-    return Image.merge("RGBA", (r, g, b, ref_a))
+    # Union: pixel is visible if visible in either ref or generated image
+    combined_alpha = np.maximum(img_arr[:, :, 3], ref_arr[:, :, 3])
+    # But use the generated image's alpha where it extends beyond ref
+    # and ref's alpha where the generated image has artifacts
+    img_arr[:, :, 3] = np.where(
+        img_arr[:, :, 3] > 10,  # generated has content
+        img_arr[:, :, 3],       # keep generated alpha
+        ref_arr[:, :, 3]        # otherwise use ref alpha (for small gaps)
+    )
+    return Image.fromarray(img_arr)
 
 
 def check_bbox_alignment(img, ref_bbox):
