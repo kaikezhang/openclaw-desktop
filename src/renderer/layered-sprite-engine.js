@@ -110,10 +110,9 @@ class LayeredSpriteEngine {
     // Sprite wrapper (transform anchor at bottom-center)
     this._wrapper = document.createElement('div');
     this._wrapper.style.cssText = `
-      position: absolute; bottom: 0; left: 50%;
-      transform: translateX(-50%);
+      position: absolute; bottom: 0; left: 0; right: 0;
       transform-origin: bottom center;
-      z-index: 10; width: auto; height: 92%;
+      z-index: 10; height: 92%;
     `;
     this.container.appendChild(this._wrapper);
 
@@ -359,7 +358,7 @@ class LayeredSpriteEngine {
     const rotate = s.tiltX.pos;
 
     this._wrapper.style.transform = `
-      translateX(calc(-50% + ${translateX}px))
+      translateX(${translateX}px)
       translateY(${totalY}px)
       scaleX(${scaleX.toFixed(4)})
       scaleY(${scaleY.toFixed(4)})
