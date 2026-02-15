@@ -359,7 +359,20 @@ async function handleCommand(command) {
       console.log('[App] Outfit request detected:', outfitRequest);
       const res = await window.electronAPI?.requestOutfit?.(outfitRequest);
       console.log('[App] Outfit request result:', res);
-      // If not cached, hold TTS until outfit ready
+      if (res?.cached) {
+        // Outfit found in wardrobe — skip chat entirely, just show local reply
+        const localReply = `换好啦～${outfitRequest} ✨`;
+        if (typeof addToHistory === 'function') {
+          addToHistory('user', command);
+          addToHistory('assistant', localReply);
+        }
+        setAppState('speaking');
+        showBubble(escapeHtml(localReply));
+        await playTTSForReply(localReply);
+        isProcessing = false;
+        setAppState('idle');
+        return;
+      }
       if (res && !res.cached) {
         outfitGenerating = true;
         window._outfitTTSHold = true;
