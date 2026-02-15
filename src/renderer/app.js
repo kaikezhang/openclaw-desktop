@@ -88,11 +88,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 // ===== Character Mode Management =====
 let glassOrbCharacter = null;
+let layeredSprite = null;
 
 function initCharacterMode(mode) {
   // Stop all existing character renderers
   if (characterAnimator) { characterAnimator.stop(); characterAnimator = null; }
   if (glassOrbCharacter) { glassOrbCharacter.stop(); glassOrbCharacter = null; }
+  if (layeredSprite) { layeredSprite.stop(); layeredSprite = null; }
   if (live2dManager) { live2dManager = null; }
 
   const l2dCanvas = document.getElementById('live2d-canvas');
@@ -115,11 +117,18 @@ function initCharacterMode(mode) {
       }
       break;
     case 'sprite':
-      if (window.CharacterAnimator && spriteContainer) {
+      if (window.LayeredSpriteEngine && spriteContainer) {
+        spriteContainer.style.display = 'block';
+        layeredSprite = new LayeredSpriteEngine('character-sprite-container');
+        layeredSprite.loadLayers('../../assets/character/wanwan/layers/final').then(() => {
+          layeredSprite.start();
+        });
+        console.log('[App] Using LayeredSpriteEngine (sprite mode)');
+      } else if (window.CharacterAnimator && spriteContainer) {
         spriteContainer.style.display = 'block';
         characterAnimator = new CharacterAnimator('character-sprite-container');
         characterAnimator.start();
-        console.log('[App] Using CharacterAnimator (sprite mode)');
+        console.log('[App] Using CharacterAnimator (sprite mode fallback)');
       }
       break;
     case 'live2d':
@@ -198,6 +207,7 @@ function setAppState(newState) {
   // Sync character animation
   if (characterAnimator) characterAnimator.setState(newState);
   if (glassOrbCharacter) glassOrbCharacter.setState(newState);
+  if (layeredSprite) layeredSprite.setState(newState);
   if (live2dManager?.isLoaded) live2dManager.setMotion(newState);
 
   // Sync mini-orb
@@ -278,8 +288,9 @@ async function handleCommand(command) {
     const reply = cleanMarkdown(result.message || '');
     lastAIResponse = reply;
 
-    // Bounce glass orb on new response
+    // Bounce character on new response
     if (glassOrbCharacter) glassOrbCharacter.bounce();
+    if (layeredSprite) layeredSprite.bounce();
 
     // System notification if window not focused
     if (!document.hasFocus() && window.electronAPI?.notify) {
@@ -662,6 +673,7 @@ async function checkConnectionStatus() {
         glassOrbCharacter._spawnParticles();
         glassOrbCharacter._spawnParticles();
       }
+      if (layeredSprite) layeredSprite.bounce();
       console.log('[App] Gateway connected');
     } else if (wasConnected && !isConnected) {
       // Disconnected — show offline state

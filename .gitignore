@@ -34,3 +34,16 @@ out/
 *.deb
 *.exe
 *.snap
+
+# Layer generation intermediates
+assets/character/wanwan/layers/clean/
+assets/character/wanwan/layers/*.py
+assets/character/wanwan/layers/exploded-parts.png
+assets/character/wanwan/layers/full-layered-design.png
+assets/character/wanwan/layers/sprite-sheet.png
+assets/character/wanwan/layers/body.png
+assets/character/wanwan/layers/cat-ears.png
+assets/character/wanwan/layers/face-only.png
+assets/character/wanwan/layers/hair-all.png
+assets/character/wanwan/layers/head-idle.png
+assets/character/wanwan/layers/head-speaking.png
