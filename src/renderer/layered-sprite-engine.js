@@ -327,13 +327,16 @@ class LayeredSpriteEngine {
       return;
     }
 
-    // 2. Trigger particle burst effect
-    this._spawnOutfitParticles();
+    // 2. Scale down with spin before swap
+    if (this._wrapper) {
+      this._wrapper.style.transition = 'transform 0.25s cubic-bezier(0.55, 0.06, 0.68, 0.19)';
+      this._wrapper.style.transform = 'scaleX(0.85) scaleY(0.85) translateY(10px)';
+    }
 
-    // 3. Squash impulse for visual feedback
-    this.springs.squashX.pos = 0.92;
-    this.springs.squashY.pos = 1.08;
-    this.springs.bounceY.vel = -150;
+    await new Promise(r => setTimeout(r, 250));
+
+    // 3. Trigger particle burst effect
+    this._spawnOutfitParticles();
 
     // 4. Swap all sprite sources atomically
     for (const [key, img] of Object.entries(newImages)) {
@@ -341,6 +344,17 @@ class LayeredSpriteEngine {
         this._sprites[key].src = img.src;
       }
     }
+
+    // 5. Scale back up with overshoot bounce
+    if (this._wrapper) {
+      this._wrapper.style.transition = 'transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)';
+      this._wrapper.style.transform = 'scaleX(1) scaleY(1) translateY(0)';
+    }
+
+    // 6. Spring impulse
+    this.springs.squashX.pos = 0.88;
+    this.springs.squashY.pos = 1.12;
+    this.springs.bounceY.vel = -200;
 
     // 5. Stretch bounce-back after swap
     requestAnimationFrame(() => {
@@ -374,45 +388,121 @@ class LayeredSpriteEngine {
   _spawnOutfitParticles() {
     if (!this._particleContainer) return;
 
+    // ── 1. White flash overlay ──
+    const flash = document.createElement('div');
+    flash.style.cssText = `
+      position: absolute; inset: 0; z-index: 50;
+      background: radial-gradient(ellipse at center, rgba(255,255,255,0.95) 0%, rgba(255,200,255,0.6) 40%, transparent 70%);
+      pointer-events: none; opacity: 1;
+      transition: opacity 0.5s ease-out;
+    `;
+    this._particleContainer.appendChild(flash);
+    requestAnimationFrame(() => { flash.style.opacity = '0'; });
+    setTimeout(() => flash.remove(), 600);
+
+    // ── 2. Sparkle burst (30 particles) ──
     const colors = [
-      'rgba(255,215,0,0.9)',   // gold
-      'rgba(255,105,180,0.9)', // pink
-      'rgba(139,92,246,0.9)',  // purple
-      'rgba(59,130,246,0.9)',  // blue
-      'rgba(255,255,255,0.9)', // white
+      'rgba(255,215,0,1)',     // gold
+      'rgba(255,105,180,1)',   // pink
+      'rgba(139,92,246,1)',    // purple
+      'rgba(59,130,246,1)',    // blue
+      'rgba(255,255,255,1)',   // white
+      'rgba(255,170,220,1)',   // light pink
     ];
 
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 30; i++) {
       const p = document.createElement('div');
-      const size = 3 + Math.random() * 4;
+      const size = 3 + Math.random() * 6;
       const color = colors[Math.floor(Math.random() * colors.length)];
-      const angle = (Math.PI * 2 / 12) * i + Math.random() * 0.5;
-      const speed = 40 + Math.random() * 60;
+      const angle = (Math.PI * 2 / 30) * i + Math.random() * 0.4;
+      const speed = 60 + Math.random() * 120;
       const dx = Math.cos(angle) * speed;
-      const dy = Math.sin(angle) * speed;
+      const dy = Math.sin(angle) * speed - 20; // bias upward
+      const delay = Math.random() * 100;
 
       p.style.cssText = `
         position: absolute; width: ${size}px; height: ${size}px;
-        border-radius: 50%; pointer-events: none; z-index: 30;
+        border-radius: 50%; pointer-events: none; z-index: 40;
         background: ${color};
-        box-shadow: 0 0 ${size * 3}px ${color};
-        left: 50%; top: 40%;
+        box-shadow: 0 0 ${size * 4}px ${color}, 0 0 ${size * 8}px ${color.replace(',1)', ',0.4)')};
+        left: 50%; top: 45%;
+        transform: scale(1.5);
         transition: none;
       `;
       this._particleContainer.appendChild(p);
 
-      // Animate outward
-      requestAnimationFrame(() => {
-        p.style.transition = 'all 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-        p.style.left = `calc(50% + ${dx}px)`;
-        p.style.top = `calc(40% + ${dy}px)`;
-        p.style.opacity = '0';
-        p.style.transform = `scale(0.2)`;
-      });
+      setTimeout(() => {
+        requestAnimationFrame(() => {
+          p.style.transition = 'all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+          p.style.left = `calc(50% + ${dx}px)`;
+          p.style.top = `calc(45% + ${dy}px)`;
+          p.style.opacity = '0';
+          p.style.transform = `scale(0) rotate(${180 + Math.random() * 360}deg)`;
+        });
+      }, delay);
 
-      // Remove after animation
-      setTimeout(() => p.remove(), 700);
+      setTimeout(() => p.remove(), 1000);
     }
+
+    // ── 3. Spinning stars (6 larger star shapes) ──
+    for (let i = 0; i < 6; i++) {
+      const star = document.createElement('div');
+      const size = 10 + Math.random() * 14;
+      const angle = (Math.PI * 2 / 6) * i;
+      const dist = 30 + Math.random() * 80;
+      const dx = Math.cos(angle) * dist;
+      const dy = Math.sin(angle) * dist - 10;
+      const color = colors[Math.floor(Math.random() * colors.length)];
+
+      star.textContent = '✦';
+      star.style.cssText = `
+        position: absolute; pointer-events: none; z-index: 45;
+        font-size: ${size}px; color: ${color};
+        text-shadow: 0 0 ${size}px ${color};
+        left: 50%; top: 40%;
+        transform: scale(0) rotate(0deg);
+        transition: none;
+      `;
+      this._particleContainer.appendChild(star);
+
+      const delay = 50 + i * 40;
+      setTimeout(() => {
+        requestAnimationFrame(() => {
+          star.style.transition = 'all 0.9s cubic-bezier(0.34, 1.56, 0.64, 1)';
+          star.style.left = `calc(50% + ${dx}px)`;
+          star.style.top = `calc(40% + ${dy}px)`;
+          star.style.transform = `scale(1.2) rotate(${360 + Math.random() * 180}deg)`;
+        });
+        setTimeout(() => {
+          star.style.transition = 'opacity 0.4s ease-out';
+          star.style.opacity = '0';
+        }, 500);
+      }, delay);
+
+      setTimeout(() => star.remove(), 1200);
+    }
+
+    // ── 4. Rising shimmer ring ──
+    const ring = document.createElement('div');
+    ring.style.cssText = `
+      position: absolute; left: 50%; top: 60%;
+      width: 20px; height: 20px;
+      border: 2px solid rgba(255,200,255,0.8);
+      border-radius: 50%;
+      transform: translate(-50%, -50%) scale(0.5);
+      pointer-events: none; z-index: 35;
+      box-shadow: 0 0 20px rgba(255,200,255,0.5), inset 0 0 20px rgba(255,200,255,0.3);
+      transition: all 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    `;
+    this._particleContainer.appendChild(ring);
+    requestAnimationFrame(() => {
+      ring.style.width = '200px';
+      ring.style.height = '200px';
+      ring.style.top = '30%';
+      ring.style.opacity = '0';
+      ring.style.borderColor = 'rgba(255,200,255,0)';
+    });
+    setTimeout(() => ring.remove(), 800);
   }
 
   /** Start speaking mouth animation — cycle through speaking frames synced to audio */

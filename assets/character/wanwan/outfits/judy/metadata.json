@@ -1,0 +1,12 @@
+{
+  "name": "judy",
+  "description": "\u75af\u72c2\u52a8\u7269\u57ce\u7684JUDY\u88c5",
+  "timestamp": "2026-02-15T12:34:48Z",
+  "sprites": {
+    "idle": "char-idle.png",
+    "blink": "char-blink.png",
+    "speaking": "char-speaking.png",
+    "speaking1": "char-speaking-1.png",
+    "speaking2": "char-speaking-2.png"
+  }
+}
