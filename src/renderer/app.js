@@ -671,17 +671,19 @@ function detectOutfitRequest(text) {
 }
 
 function detectOutfitInReply(text) {
-  // Detect when AI says it will change outfit (e.g. "给你换个xxx" "穿上xxx给你看")
+  // Detect when AI explicitly says it will change to a specific outfit
+  // Must have clear verb + clothing noun, avoid false positives from casual "换装" mentions
   const patterns = [
-    /(?:给你|帮你|我来|这就|马上)换[上个一件套身]?(.{2,20}?)(?:[吧呗啦了！!？?～~]|$)/,
-    /换[上成]?[个一件套身]?(.{2,20}?)(?:给你|怎么样|好不好|[吧呗啦了！!？?～~]|$)/,
-    /穿[上个一件套]?(.{2,20}?)(?:给你看|怎么样|好不好|[吧呗啦了！!？?～~]|$)/,
+    /(?:给你|帮你)换[上个一件](.{2,15}?)(?:[吧呗啦了！!？?～~]|$)/,
+    /(?:这就|马上)穿[上个一件](.{2,15}?)(?:[吧呗啦！!～~]|$)/,
+    /穿[上个一件](.{2,15}?)给你看/,
   ];
   for (const p of patterns) {
     const m = text.match(p);
     if (m) {
       const desc = m[1].replace(/^[的地得]/, '').trim();
-      if (desc.length >= 2 && desc.length < 25) return desc;
+      // Sanity check: must look like clothing, not random text
+      if (desc.length >= 2 && desc.length < 20 && !/[，。！？,.!?]/.test(desc)) return desc;
     }
   }
   return null;
