@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (window.AudioPlayerQueue) {
     audioPlayerQueue = new AudioPlayerQueue();
     audioPlayerQueue.onPlayStart = (text) => {
-      showBubble(escapeHtml(text));
+      showBubble(escapeHtml(text), false, true);
     };
     audioPlayerQueue.onQueueEmpty = () => {
       // TTS done — back to idle
@@ -427,7 +427,7 @@ function exitMiniMode() {
 // ===== Bubble =====
 let typewriterTimer = null;
 
-function showBubble(content, isUser = false) {
+function showBubble(content, isUser = false, instant = false) {
   clearTimeout(bubbleHideTimer);
   if (typewriterTimer) { clearInterval(typewriterTimer); typewriterTimer = null; }
 
@@ -439,31 +439,14 @@ function showBubble(content, isUser = false) {
     bubbleText.innerHTML = content;
   } else {
     speechBubble.className = 'speech-bubble ai-response';
-    // Typewriter effect for AI responses (skip for HTML like thinking dots)
-    if (content.includes('<')) {
-      bubbleText.innerHTML = content;
+
+    if (instant || content.includes('<')) {
+      // Instant display for TTS playback or HTML content
+      bubbleText.textContent = content.includes('<') ? '' : content;
+      if (content.includes('<')) bubbleText.innerHTML = content;
       lastBubbleText = content;
-    } else if (content.startsWith(lastBubbleText) && lastBubbleText.length > 0) {
-      // Content is an extension of what's already displayed — only typewrite the new part
-      const newPart = content.slice(lastBubbleText.length);
-      lastBubbleText = content;
-      if (newPart.length > 0) {
-        // Stop any existing typewriter, then append new text
-        if (typewriterTimer) { clearInterval(typewriterTimer); typewriterTimer = null; }
-        let i = 0;
-        typewriterTimer = setInterval(() => {
-          if (i < newPart.length) {
-            bubbleText.textContent += newPart[i];
-            i++;
-            speechBubble.scrollTop = speechBubble.scrollHeight;
-          } else {
-            clearInterval(typewriterTimer);
-            typewriterTimer = null;
-          }
-        }, 30);
-      }
     } else {
-      // Brand new content — typewrite from scratch
+      // Typewriter effect for non-TTS AI responses
       lastBubbleText = content;
       bubbleText.textContent = '';
       let i = 0;
@@ -472,7 +455,6 @@ function showBubble(content, isUser = false) {
         if (i < text.length) {
           bubbleText.textContent += text[i];
           i++;
-          // Auto-scroll
           speechBubble.scrollTop = speechBubble.scrollHeight;
         } else {
           clearInterval(typewriterTimer);
@@ -482,7 +464,10 @@ function showBubble(content, isUser = false) {
     }
   }
 
-  bubbleHideTimer = setTimeout(() => hideBubble(), BUBBLE_AUTO_HIDE);
+  // Don't auto-hide while speaking — bubble stays until TTS is done
+  if (appState !== 'speaking') {
+    bubbleHideTimer = setTimeout(() => hideBubble(), BUBBLE_AUTO_HIDE);
+  }
 }
 
 function hideBubble(delay) {

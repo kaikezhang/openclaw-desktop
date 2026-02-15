@@ -119,14 +119,9 @@ class AudioPlayerQueue {
       }
 
       audio.onplay = () => {
-        // Accumulate displayed text
-        if (this.textBuffer && !this.textBuffer.includes(text)) {
-          this.textBuffer += text;
-        } else if (!this.textBuffer) {
-          this.textBuffer = text;
-        }
+        // Show only the current sentence being spoken
         if (this.onPlayStart) {
-          this.onPlayStart(this.textBuffer);
+          this.onPlayStart(text);
         }
       };
 
