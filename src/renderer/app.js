@@ -13,6 +13,7 @@ const BUBBLE_AUTO_HIDE = 12000;
 let followupTimer = null;
 let bubbleHideTimer = null;
 let lastBubbleText = '';  // Track what's already displayed in bubble
+let bubbleScrollTimer = null;  // Auto-scroll timer for long text
 
 // ===== DOM Elements =====
 const speechBubble = document.getElementById('speech-bubble');
@@ -284,6 +285,7 @@ async function handleCommand(command) {
   }
   streamingTTSStarted = false;
   lastBubbleText = '';
+  if (bubbleScrollTimer) { clearInterval(bubbleScrollTimer); bubbleScrollTimer = null; }
 
   try {
     const result = await window.electronAPI.chat(command);
@@ -445,8 +447,24 @@ function showBubble(content, isUser = false, instant = false) {
       bubbleText.textContent = content.includes('<') ? '' : content;
       if (content.includes('<')) bubbleText.innerHTML = content;
       lastBubbleText = content;
-      // Auto-scroll to bottom for long text
-      speechBubble.scrollTop = speechBubble.scrollHeight;
+      // Start smooth auto-scroll if text overflows
+      if (bubbleScrollTimer) { clearInterval(bubbleScrollTimer); bubbleScrollTimer = null; }
+      speechBubble.scrollTop = 0;
+      requestAnimationFrame(() => {
+        if (speechBubble.scrollHeight > speechBubble.clientHeight) {
+          const scrollDistance = speechBubble.scrollHeight - speechBubble.clientHeight;
+          const duration = 4000; // scroll over 4 seconds
+          const startTime = Date.now();
+          bubbleScrollTimer = setInterval(() => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            // Ease-in-out
+            const ease = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+            speechBubble.scrollTop = ease * scrollDistance;
+            if (progress >= 1) { clearInterval(bubbleScrollTimer); bubbleScrollTimer = null; }
+          }, 16);
+        }
+      });
     } else {
       // Typewriter effect for non-TTS AI responses
       lastBubbleText = content;
