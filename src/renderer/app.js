@@ -85,16 +85,52 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   // Outfit change from gateway
+  // Pending TTS to play after outfit swap completes
+  window._outfitTTSPending = null;
   window.electronAPI?.onOutfitChange?.((data) => {
     console.log('[App] Outfit change:', data.status, data.outfit);
     if (data.status === 'loading') {
-      showBubble('Changing outfit...');
+      showBubble('换装中～ 等一下下…');
       if (layeredSprite) layeredSprite.bounce();
     } else if (data.status === 'ready' && data.sprites && layeredSprite) {
       layeredSprite.swapOutfit(data.sprites);
-      showBubble(`New outfit: ${data.outfit}`);
+      // Release held streaming TTS audio
+      if (window._outfitTTSHold) {
+        window._outfitTTSHold = false;
+        const held = window._outfitTTSHoldQueue || [];
+        window._outfitTTSHoldQueue = [];
+        console.log(`[App] Flushing ${held.length} held TTS chunks after outfit swap`);
+        setAppState('speaking');
+        for (const chunk of held) {
+          if (audioPlayerQueue) audioPlayerQueue.enqueue(chunk.audio, chunk.text);
+        }
+      }
+      // Play pending non-streaming TTS if held
+      if (window._outfitTTSPending) {
+        const { reply } = window._outfitTTSPending;
+        window._outfitTTSPending = null;
+        showBubble(escapeHtml(reply));
+        playTTSForReply(reply);
+      }
     } else if (data.status === 'error') {
-      showBubble('Outfit change failed');
+      // Release held TTS on error too
+      if (window._outfitTTSHold) {
+        window._outfitTTSHold = false;
+        const held = window._outfitTTSHoldQueue || [];
+        window._outfitTTSHoldQueue = [];
+        setAppState('speaking');
+        for (const chunk of held) {
+          if (audioPlayerQueue) audioPlayerQueue.enqueue(chunk.audio, chunk.text);
+        }
+      }
+      if (window._outfitTTSPending) {
+        const { reply } = window._outfitTTSPending;
+        window._outfitTTSPending = null;
+        showBubble(escapeHtml(reply));
+        playTTSForReply(reply);
+      } else {
+        showBubble('换装失败了…');
+      }
     }
   });
 
@@ -245,6 +281,12 @@ function initTTSListeners() {
   window.electronAPI.tts.removeAllListeners();
 
   window.electronAPI.tts.onAudioChunk((data) => {
+    if (window._outfitTTSHold) {
+      // Buffer audio chunks while waiting for outfit swap
+      window._outfitTTSHoldQueue = window._outfitTTSHoldQueue || [];
+      window._outfitTTSHoldQueue.push(data);
+      return;
+    }
     if (audioPlayerQueue) {
       audioPlayerQueue.enqueue(data.audio, data.text);
     }
@@ -252,7 +294,7 @@ function initTTSListeners() {
 
   window.electronAPI.tts.onFirstSentence(() => {
     streamingTTSStarted = true;
-    if (appState === 'thinking') {
+    if (!window._outfitTTSHold && appState === 'thinking') {
       setAppState('speaking');
     }
   });
@@ -311,13 +353,18 @@ async function handleCommand(command) {
 
   try {
     // Check if user is requesting outfit change BEFORE sending to AI
+    let outfitGenerating = false;
     const outfitRequest = detectOutfitRequest(command);
     if (outfitRequest) {
       console.log('[App] Outfit request detected:', outfitRequest);
-      // Try wardrobe first, then generate if not found
-      window.electronAPI?.requestOutfit?.(outfitRequest).then((res) => {
-        console.log('[App] Outfit request result:', res);
-      });
+      const res = await window.electronAPI?.requestOutfit?.(outfitRequest);
+      console.log('[App] Outfit request result:', res);
+      // If not cached, hold TTS until outfit ready
+      if (res && !res.cached) {
+        outfitGenerating = true;
+        window._outfitTTSHold = true;
+        window._outfitTTSHoldQueue = [];
+      }
     }
 
     const result = await window.electronAPI.chat(command);
@@ -349,21 +396,18 @@ async function handleCommand(command) {
     // If streaming TTS already handled it, we're done.
     // Otherwise fall back to non-streaming TTS.
     if (!streamingTTSStarted && !audioPlayerQueue?.playing && audioPlayerQueue?.queue?.length === 0) {
-      setAppState('speaking');
-      showBubble(escapeHtml(reply));
-
-      const ttsResult = await window.electronAPI.tts.synthesize(reply);
-      if (ttsResult?.success) {
-        const audio = new Audio('data:audio/mp3;base64,' + ttsResult.audio);
-        await new Promise((resolve) => {
-          audio.onended = resolve;
-          audio.onerror = resolve;
-          audio.play().catch(resolve);
-        });
+      if (outfitGenerating) {
+        // Hold TTS until outfit swap completes
+        console.log('[App] Holding TTS for outfit generation...');
+        window._outfitTTSPending = { reply };
+        // outfit:change handler will play TTS + set idle
+      } else {
+        setAppState('speaking');
+        showBubble(escapeHtml(reply));
+        await playTTSForReply(reply);
+        isProcessing = false;
+        setAppState('idle');
       }
-
-      isProcessing = false;
-      setAppState('idle');
     }
   } catch (error) {
     console.error('[Command] Failed:', error);
@@ -551,6 +595,25 @@ function fadeOutBubble() {
 }
 
 // ===== Outfit Detection =====
+async function playTTSForReply(reply) {
+  setAppState('speaking');
+  try {
+    const ttsResult = await window.electronAPI.tts.synthesize(reply);
+    if (ttsResult?.success) {
+      const audio = new Audio('data:audio/mp3;base64,' + ttsResult.audio);
+      await new Promise((resolve) => {
+        audio.onended = resolve;
+        audio.onerror = resolve;
+        audio.play().catch(resolve);
+      });
+    }
+  } catch (e) {
+    console.error('[TTS] playTTSForReply error:', e);
+  }
+  isProcessing = false;
+  setAppState('idle');
+}
+
 function detectOutfitRequest(text) {
   // Detect outfit change intent — returns the outfit description or null
   const patterns = [
