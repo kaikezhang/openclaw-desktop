@@ -3,7 +3,6 @@ import * as fs from 'fs';
 import * as os from 'os';
 import { OpenClawClient } from './openclaw-client';
 import { TTSEngine } from './tts-engine';
-import { STTEngine } from './stt-engine';
 import { ImageGenEngine } from './image-gen';
 import { getSettings, setSettings, type AppSettings } from './settings-store';
 
@@ -15,12 +14,11 @@ export function registerIpcHandlers(deps: {
   getWindow: () => BrowserWindow | null;
   openclawClient: OpenClawClient;
   ttsEngine: TTSEngine;
-  sttEngine: STTEngine;
   imageGenEngine: ImageGenEngine;
   getLoginItem: () => boolean;
   setLoginItem: (enabled: boolean) => void;
 }): void {
-  const { getWindow, openclawClient, ttsEngine, sttEngine, imageGenEngine, getLoginItem, setLoginItem } = deps;
+  const { getWindow, openclawClient, ttsEngine, imageGenEngine, getLoginItem, setLoginItem } = deps;
 
   // ===== Chat =====
 
@@ -62,22 +60,6 @@ export function registerIpcHandlers(deps: {
   ipcMain.handle('openclaw:newSession', async () => {
     const sessionKey = openclawClient.newSession();
     return { sessionKey };
-  });
-
-  // ===== STT =====
-
-  ipcMain.handle('stt:startListening', async () => {
-    return sttEngine.startListening();
-  });
-
-  ipcMain.handle('stt:stopListening', async () => {
-    sttEngine.stopListening();
-    return { success: true };
-  });
-
-  ipcMain.handle('stt:sendAudio', async (_event, audioData: Uint8Array) => {
-    sttEngine.sendAudio(audioData);
-    return { success: true };
   });
 
   // ===== TTS =====

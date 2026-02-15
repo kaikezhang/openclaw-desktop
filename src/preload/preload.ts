@@ -10,32 +10,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getConnectionStatus: () => ipcRenderer.invoke('openclaw:status'),
   newSession: () => ipcRenderer.invoke('openclaw:newSession'),
 
-  // ===== STT (Speech-to-Text) =====
-  stt: {
-    startListening: () => ipcRenderer.invoke('stt:startListening'),
-    stopListening: () => ipcRenderer.invoke('stt:stopListening'),
-    sendAudio: (data: Uint8Array) => ipcRenderer.invoke('stt:sendAudio', data),
-
-    onConnected: (cb: () => void) =>
-      ipcRenderer.on('stt:connected', () => cb()),
-    onTranscript: (cb: (data: { transcript: string; isFinal: boolean }) => void) =>
-      ipcRenderer.on('stt:transcript', (_e, data) => cb(data)),
-    onUtteranceEnd: (cb: () => void) =>
-      ipcRenderer.on('stt:utteranceEnd', () => cb()),
-    onError: (cb: (error: string) => void) =>
-      ipcRenderer.on('stt:error', (_e, error) => cb(error)),
-    onClosed: (cb: () => void) =>
-      ipcRenderer.on('stt:closed', () => cb()),
-
-    removeAllListeners: () => {
-      ipcRenderer.removeAllListeners('stt:connected');
-      ipcRenderer.removeAllListeners('stt:transcript');
-      ipcRenderer.removeAllListeners('stt:utteranceEnd');
-      ipcRenderer.removeAllListeners('stt:error');
-      ipcRenderer.removeAllListeners('stt:closed');
-    },
-  },
-
   // ===== TTS (Text-to-Speech) =====
   tts: {
     synthesize: (text: string) => ipcRenderer.invoke('tts:synthesize', text),
@@ -88,8 +62,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   notify: (title: string, body: string) => ipcRenderer.invoke('notify', { title, body }),
 
   // ===== Global Hotkeys =====
-  onToggleRecord: (cb: () => void) =>
-    ipcRenderer.on('hotkey:toggleRecord', () => cb()),
   onToggleMini: (cb: () => void) =>
     ipcRenderer.on('hotkey:toggleMini', () => cb()),
   onSessionReset: (cb: () => void) =>

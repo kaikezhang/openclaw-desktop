@@ -1,26 +1,15 @@
 // ===== State Machine =====
-// States: idle | listening | thinking | speaking | followup
+// States: idle | thinking | speaking
 let appState = 'idle';
-let isRecording = false;
 let isProcessing = false;
-let audioStream = null;
-let audioContext = null;
-let audioWorkletNode = null;
 let auraAnimator = null;
 let live2dManager = null;
 let characterAnimator = null;
 let audioPlayerQueue = null;
 let streamingTTSStarted = false;
-let executeTimer = null;
-let countdownInterval = null;
-let accumulatedTranscript = '';
 let lastAIResponse = '';
 let isMiniMode = false;
-
-const FOLLOWUP_TIMEOUT = 30000;
 const BUBBLE_AUTO_HIDE = 12000;
-const EXECUTE_DELAY = 3000;
-
 let followupTimer = null;
 let bubbleHideTimer = null;
 
@@ -76,16 +65,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       showBubble(escapeHtml(text));
     };
     audioPlayerQueue.onQueueEmpty = () => {
-      // TTS done — enter followup mode
+      // TTS done — back to idle
       if (appState === 'speaking') {
         isProcessing = false;
-        setAppState('followup');
-        startRecording();
+        setAppState('idle');
       }
     };
   }
 
-  initSTTListeners();
   initTTSListeners();
 
   // Session reset from tray menu
@@ -183,30 +170,10 @@ function setAppState(newState) {
   stateDot.className = 'state-dot';
   statusHint.className = 'status-hint';
 
-  // Tap hint visibility
-  if (newState === 'idle') {
-    tapHint.classList.remove('hidden');
-  } else {
-    tapHint.classList.add('hidden');
-  }
-
-  // Pulse ring
-  if (newState === 'listening' || newState === 'followup') {
-    listeningPulseRing.classList.remove('hidden');
-  } else {
-    listeningPulseRing.classList.add('hidden');
-  }
-
   switch (newState) {
     case 'idle':
       stateText.textContent = window.I18N ? window.I18N.t('ready') : 'Ready';
       statusHint.textContent = '';
-      break;
-    case 'listening':
-      stateDot.classList.add('listening');
-      statusHint.classList.add('listening');
-      stateText.textContent = window.I18N ? window.I18N.t('listening') : 'Listening...';
-      statusHint.textContent = window.I18N ? window.I18N.t('speak-now') : 'Speak now...';
       break;
     case 'thinking':
       stateDot.classList.add('thinking');
@@ -221,103 +188,22 @@ function setAppState(newState) {
       stateText.textContent = window.I18N ? window.I18N.t('speaking') : 'Speaking...';
       statusHint.textContent = window.I18N ? window.I18N.t('replying') : 'Replying';
       break;
-    case 'followup':
-      stateDot.classList.add('listening');
-      statusHint.classList.add('listening');
-      stateText.textContent = window.I18N ? window.I18N.t('continue-speaking') : 'Continue speaking...';
-      statusHint.textContent = window.I18N ? window.I18N.t('ask-followup') : 'Ask a follow-up';
-      followupTimer = setTimeout(() => {
-        stopRecording().then(() => {
-          setAppState('idle');
-          hideBubble(2000);
-        });
-      }, FOLLOWUP_TIMEOUT);
-      break;
   }
 
   // Sync aura
   if (auraAnimator) {
-    const orbState = newState === 'followup' ? 'listening' : newState;
-    auraAnimator.setState(orbState);
+    auraAnimator.setState(newState);
   }
 
   // Sync character animation
-  const charState = newState === 'followup' ? 'listening' : newState;
-  if (characterAnimator) characterAnimator.setState(charState);
-  if (glassOrbCharacter) glassOrbCharacter.setState(charState);
-  if (live2dManager?.isLoaded) live2dManager.setMotion(charState);
+  if (characterAnimator) characterAnimator.setState(newState);
+  if (glassOrbCharacter) glassOrbCharacter.setState(newState);
+  if (live2dManager?.isLoaded) live2dManager.setMotion(newState);
 
   // Sync mini-orb
   if (isMiniMode) {
     setMiniOrbState(newState);
   }
-}
-
-// ===== STT Listeners =====
-function initSTTListeners() {
-  window.electronAPI.stt.removeAllListeners();
-
-  window.electronAPI.stt.onConnected(() => {
-    console.log('[STT] Connected');
-  });
-
-  window.electronAPI.stt.onTranscript((data) => {
-    const { transcript, isFinal } = data;
-
-    if (isFinal) {
-      if (transcript.trim().length > 0) {
-        accumulatedTranscript += (accumulatedTranscript.length > 0 ? ' ' : '') + transcript.trim();
-        showBubble(escapeHtml(accumulatedTranscript), true);
-
-        clearTimeout(executeTimer);
-
-        executeTimer = setTimeout(() => {
-          clearInterval(countdownInterval);
-          const cmd = accumulatedTranscript;
-          accumulatedTranscript = '';
-          stopRecording().then(() => handleCommand(cmd));
-        }, EXECUTE_DELAY);
-
-        // Countdown
-        let countdown = Math.ceil(EXECUTE_DELAY / 1000);
-        clearInterval(countdownInterval);
-        statusHint.textContent = `Executing in ${countdown}s...`;
-        countdownInterval = setInterval(() => {
-          countdown--;
-          if (countdown > 0) {
-            statusHint.textContent = `Executing in ${countdown}s...`;
-          } else {
-            clearInterval(countdownInterval);
-          }
-        }, 1000);
-      }
-    } else {
-      if (transcript.trim().length > 0) {
-        statusHint.textContent = transcript + '...';
-      }
-    }
-  });
-
-  window.electronAPI.stt.onUtteranceEnd(() => {
-    if (accumulatedTranscript.trim().length > 0) {
-      clearTimeout(executeTimer);
-      clearInterval(countdownInterval);
-      const cmd = accumulatedTranscript;
-      accumulatedTranscript = '';
-      stopRecording().then(() => handleCommand(cmd));
-    }
-  });
-
-  window.electronAPI.stt.onError((error) => {
-    console.error('[STT] Error:', error);
-    stopRecording();
-    setAppState('idle');
-    showBubble('Speech recognition error');
-  });
-
-  window.electronAPI.stt.onClosed(() => {
-    console.log('[STT] Connection closed');
-  });
 }
 
 // ===== TTS Listeners =====
@@ -346,103 +232,13 @@ function interruptTTS() {
   window.electronAPI.tts.stop();
 }
 
-// ===== Recording =====
-async function startRecording() {
-  if (isRecording || isProcessing) return;
-
-  try {
-    interruptTTS();
-
-    // Check STT availability before requesting mic access
-    const result = await window.electronAPI.stt.startListening();
-    if (!result.success) {
-      // If not configured, hint to use text input instead
-      if (result.error?.includes('not configured')) {
-        const msg = window.I18N
-          ? window.I18N.t('type-message')
-          : 'Use text input below (voice requires Deepgram API key)';
-        showBubble('⌨️ ' + msg);
-        textInput.focus();
-      } else {
-        showBubble('STT: ' + (result.error || 'unknown'));
-      }
-      setAppState('idle');
-      return;
-    }
-
-    audioStream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true,
-        sampleRate: 16000,
-      },
-    });
-
-    audioContext = new (window.AudioContext || window.webkitAudioContext)({
-      sampleRate: 16000,
-    });
-
-    await audioContext.audioWorklet.addModule('audio-processor.js');
-    const source = audioContext.createMediaStreamSource(audioStream);
-    audioWorkletNode = new AudioWorkletNode(audioContext, 'audio-processor');
-
-    audioWorkletNode.port.onmessage = (event) => {
-      if (isRecording && event.data) {
-        window.electronAPI.stt.sendAudio(new Uint8Array(event.data));
-      }
-    };
-
-    source.connect(audioWorkletNode);
-    isRecording = true;
-  } catch (error) {
-    console.error('[Recording] Failed:', error);
-    setAppState('idle');
-    if (error.name === 'NotAllowedError') {
-      showBubble('Microphone access denied');
-    } else if (error.name === 'NotFoundError') {
-      showBubble('No microphone found');
-    } else {
-      showBubble('Recording failed: ' + error.message);
-    }
-  }
-}
-
-async function stopRecording() {
-  if (!isRecording) return;
-  isRecording = false;
-
-  clearTimeout(executeTimer);
-  clearInterval(countdownInterval);
-
-  if (audioWorkletNode) {
-    audioWorkletNode.disconnect();
-    try { audioWorkletNode.port.close(); } catch (_) {}
-    audioWorkletNode = null;
-  }
-
-  if (audioContext && audioContext.state !== 'closed') {
-    await audioContext.close();
-    audioContext = null;
-  }
-
-  if (audioStream) {
-    audioStream.getTracks().forEach((t) => t.stop());
-    audioStream = null;
-  }
-
-  await window.electronAPI.stt.stopListening();
-}
-
 // ===== Character Click =====
-async function onCharacterClick() {
-  // Speaking → interrupt & listen
+function onCharacterClick() {
+  // Speaking → interrupt
   if (appState === 'speaking') {
     interruptTTS();
     isProcessing = false;
-    accumulatedTranscript = '';
-    setAppState('listening');
-    await startRecording();
+    setAppState('idle');
     return;
   }
 
@@ -455,21 +251,8 @@ async function onCharacterClick() {
     return;
   }
 
-  if (isProcessing) return;
-
-  // Toggle listening
-  if (appState === 'listening' || appState === 'followup') {
-    clearTimeout(executeTimer);
-    accumulatedTranscript = '';
-    await stopRecording();
-    setAppState('idle');
-    return;
-  }
-
-  accumulatedTranscript = '';
-  hideBubble();
-  setAppState('listening');
-  await startRecording();
+  // Idle → focus text input
+  textInput.focus();
 }
 
 characterArea.addEventListener('click', onCharacterClick);
@@ -524,8 +307,7 @@ async function handleCommand(command) {
       }
 
       isProcessing = false;
-      setAppState('followup');
-      await startRecording();
+      setAppState('idle');
     }
   } catch (error) {
     console.error('[Command] Failed:', error);
@@ -593,31 +375,18 @@ function initMiniMode() {
   }
 }
 
-async function onMiniOrbTap() {
+function onMiniOrbTap() {
   if (!isMiniMode) return;
 
   if (appState === 'speaking') {
     interruptTTS();
     isProcessing = false;
-    accumulatedTranscript = '';
-    setAppState('listening');
-    await startRecording();
-    return;
-  }
-
-  if (isProcessing) return;
-
-  if (appState === 'listening' || appState === 'followup') {
-    clearTimeout(executeTimer);
-    accumulatedTranscript = '';
-    await stopRecording();
     setAppState('idle');
     return;
   }
 
-  accumulatedTranscript = '';
-  setAppState('listening');
-  await startRecording();
+  // Restore from mini mode to type
+  window.electronAPI?.restoreWindow?.();
 }
 
 function setMiniOrbState(state) {
@@ -770,12 +539,6 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     if (historyPanel && historyPanel.style.display !== 'none') {
       historyPanel.style.display = 'none';
-      return;
-    }
-    if (appState === 'listening' || appState === 'followup') {
-      clearTimeout(executeTimer);
-      accumulatedTranscript = '';
-      stopRecording().then(() => setAppState('idle'));
       return;
     }
     if (appState === 'thinking') {

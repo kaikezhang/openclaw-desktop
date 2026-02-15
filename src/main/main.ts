@@ -6,7 +6,6 @@ dotenv.config();
 
 import { OpenClawClient } from './openclaw-client';
 import { TTSEngine } from './tts-engine';
-import { STTEngine } from './stt-engine';
 import { registerIpcHandlers } from './ipc-handlers';
 import { ImageGenEngine } from './image-gen';
 import { initAutoUpdater } from './auto-updater';
@@ -50,10 +49,6 @@ const ttsEngine = new TTSEngine({
   }
 }
 
-const sttEngine = new STTEngine({
-  apiKey: process.env.DEEPGRAM_API_KEY || '',
-});
-
 const imageGenEngine = new ImageGenEngine({
   falKey: process.env.FAL_KEY || '',
 });
@@ -83,7 +78,6 @@ function createWindow(): void {
 
   // Pass window reference to engines
   ttsEngine.setWindow(mainWindow);
-  sttEngine.setWindow(mainWindow);
 
   if (process.argv.includes('--dev')) {
     mainWindow.webContents.openDevTools({ mode: 'detach' });
@@ -206,11 +200,6 @@ function createTray(): void {
 // ===== Global Shortcuts =====
 
 function registerGlobalShortcuts(): void {
-  // Toggle recording (push-to-talk)
-  globalShortcut.register('CommandOrControl+Shift+O', () => {
-    mainWindow?.webContents.send('hotkey:toggleRecord');
-  });
-
   // Toggle mini mode
   globalShortcut.register('CommandOrControl+Shift+M', () => {
     mainWindow?.webContents.send('hotkey:toggleMini');
@@ -229,7 +218,6 @@ app.whenReady().then(() => {
     getWindow: () => mainWindow,
     openclawClient,
     ttsEngine,
-    sttEngine,
     imageGenEngine,
     getLoginItem,
     setLoginItem,
@@ -249,7 +237,6 @@ app.on('will-quit', () => {
 });
 
 app.on('window-all-closed', () => {
-  sttEngine.destroy();
   ttsEngine.stop();
   openclawClient.disconnect();
 

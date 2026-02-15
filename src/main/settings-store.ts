@@ -5,14 +5,12 @@ import * as path from 'path';
 export interface AppSettings {
   openclawPort: number;
   openclawToken: string;
-  deepgramApiKey: string;
   minimaxApiKey: string;
   minimaxGroupId: string;
   minimaxModel: string;
   minimaxVoiceId: string;
   live2dModelPath: string;
   theme: 'dark' | 'light' | 'purple';
-  hotkeyToggleRecord: string;
   hotkeyToggleMini: string;
   startMinimized: boolean;
   alwaysOnTop: boolean;
@@ -21,14 +19,12 @@ export interface AppSettings {
 const defaults: AppSettings = {
   openclawPort: 18789,
   openclawToken: '',
-  deepgramApiKey: '',
   minimaxApiKey: '',
   minimaxGroupId: '',
   minimaxModel: 'speech-02-hd',
   minimaxVoiceId: 'Chinese (Mandarin)_Warm_Girl',
   live2dModelPath: 'Hiyori/Hiyori.model3.json',
   theme: 'dark',
-  hotkeyToggleRecord: 'CommandOrControl+Shift+O',
   hotkeyToggleMini: 'CommandOrControl+Shift+M',
   startMinimized: false,
   alwaysOnTop: true,
