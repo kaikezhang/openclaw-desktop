@@ -248,6 +248,7 @@ app.whenReady().then(() => {
     imageGenEngine,
     getLoginItem,
     setLoginItem,
+    openSettingsWindow,
   });
 
   // Auto-updater (only in packaged builds)

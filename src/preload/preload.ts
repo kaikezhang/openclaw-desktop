@@ -52,6 +52,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // ===== Settings =====
   settings: {
+    open: () => ipcRenderer.invoke('settings:open'),
     get: () => ipcRenderer.invoke('settings:get'),
     set: (patch: Record<string, any>) => ipcRenderer.invoke('settings:set', patch),
     getLoginItem: () => ipcRenderer.invoke('settings:getLoginItem'),

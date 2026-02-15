@@ -17,6 +17,7 @@ export function registerIpcHandlers(deps: {
   imageGenEngine: ImageGenEngine;
   getLoginItem: () => boolean;
   setLoginItem: (enabled: boolean) => void;
+  openSettingsWindow: () => void;
 }): void {
   const { getWindow, openclawClient, ttsEngine, imageGenEngine, getLoginItem, setLoginItem } = deps;
 
@@ -194,6 +195,10 @@ export function registerIpcHandlers(deps: {
   });
 
   // ===== Settings =====
+
+  ipcMain.handle('settings:open', async () => {
+    deps.openSettingsWindow();
+  });
 
   ipcMain.handle('settings:get', async () => {
     return getSettings();

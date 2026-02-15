@@ -753,7 +753,7 @@ characterArea.addEventListener('contextmenu', (e) => {
     { divider: true },
     { label: '🔄 New Chat', action: async () => { await window.electronAPI?.newSession?.(); chatHistory = []; if (historyPanel) renderHistory(); showBubble('New chat started ✨'); } },
     { label: window.I18N ? window.I18N.t('chat-history') : 'Chat History', action: () => { if (historyPanel) { historyPanel.style.display = 'flex'; renderHistory(); } } },
-    { label: window.I18N ? window.I18N.t('settings-title') : '⚙️ Settings', action: () => { window.electronAPI?.settings?.get(); /* trigger settings window via tray */ } },
+    { label: window.I18N ? window.I18N.t('settings-title') : '⚙️ Settings', action: () => { window.electronAPI?.settings?.open(); } },
   ];
 
   for (const item of items) {
