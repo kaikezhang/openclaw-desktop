@@ -263,6 +263,119 @@ class LayeredSpriteEngine {
     this.springs.squashY.pos = 0.92;
   }
 
+  /**
+   * Hot-swap outfit sprites with particle burst transition.
+   * @param {Object} sprites - { idle: base64, blink: base64, speaking: base64 }
+   */
+  async swapOutfit(sprites) {
+    if (!sprites || !sprites.idle || !sprites.blink || !sprites.speaking) {
+      console.warn('[LayeredSpriteEngine] swapOutfit: missing sprites');
+      return;
+    }
+
+    // 1. Preload all new images and wait for decode
+    const newImages = {};
+    const loadPromises = Object.entries(sprites).map(([key, b64]) => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          // Use decode() for guaranteed render-ready state
+          if (img.decode) {
+            img.decode().then(() => {
+              newImages[key] = img;
+              resolve();
+            }).catch(() => {
+              newImages[key] = img;
+              resolve();
+            });
+          } else {
+            newImages[key] = img;
+            resolve();
+          }
+        };
+        img.onerror = reject;
+        img.src = `data:image/png;base64,${b64}`;
+      });
+    });
+
+    try {
+      await Promise.all(loadPromises);
+    } catch (e) {
+      console.error('[LayeredSpriteEngine] Failed to preload outfit sprites:', e);
+      return;
+    }
+
+    // 2. Trigger particle burst effect
+    this._spawnOutfitParticles();
+
+    // 3. Squash impulse for visual feedback
+    this.springs.squashX.pos = 0.92;
+    this.springs.squashY.pos = 1.08;
+    this.springs.bounceY.vel = -150;
+
+    // 4. Swap all sprite sources atomically
+    for (const [key, img] of Object.entries(newImages)) {
+      if (this._sprites[key]) {
+        this._sprites[key].src = img.src;
+      }
+    }
+
+    // 5. Stretch bounce-back after swap
+    requestAnimationFrame(() => {
+      this.springs.squashX.pos = 1.06;
+      this.springs.squashY.pos = 0.94;
+    });
+
+    console.log('[LayeredSpriteEngine] Outfit swapped');
+  }
+
+  /**
+   * Spawn a burst of particles for outfit change effect.
+   */
+  _spawnOutfitParticles() {
+    if (!this._particleContainer) return;
+
+    const colors = [
+      'rgba(255,215,0,0.9)',   // gold
+      'rgba(255,105,180,0.9)', // pink
+      'rgba(139,92,246,0.9)',  // purple
+      'rgba(59,130,246,0.9)',  // blue
+      'rgba(255,255,255,0.9)', // white
+    ];
+
+    for (let i = 0; i < 12; i++) {
+      const p = document.createElement('div');
+      const size = 3 + Math.random() * 4;
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      const angle = (Math.PI * 2 / 12) * i + Math.random() * 0.5;
+      const speed = 40 + Math.random() * 60;
+      const dx = Math.cos(angle) * speed;
+      const dy = Math.sin(angle) * speed;
+
+      p.style.cssText = `
+        position: absolute; width: ${size}px; height: ${size}px;
+        border-radius: 50%; pointer-events: none; z-index: 30;
+        background: ${color};
+        box-shadow: 0 0 ${size * 3}px ${color};
+        left: 50%; top: 40%;
+        transition: none;
+      `;
+      this._particleContainer.appendChild(p);
+
+      // Animate outward
+      requestAnimationFrame(() => {
+        p.style.transition = 'all 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+        p.style.left = `calc(50% + ${dx}px)`;
+        p.style.top = `calc(40% + ${dy}px)`;
+        p.style.opacity = '0';
+        p.style.transform = `scale(0.2)`;
+      });
+
+      // Remove after animation
+      setTimeout(() => p.remove(), 700);
+    }
+  }
+
   /** Update with audio volume (0-1) for lip sync reactivity */
   updateVisualizer(volume) {
     if (this.state === 'speaking' && volume > 0.05) {

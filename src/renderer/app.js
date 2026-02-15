@@ -83,6 +83,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (historyPanel) renderHistory();
     showBubble('New chat started ✨');
   });
+
+  // Outfit change from gateway
+  window.electronAPI?.onOutfitChange?.((data) => {
+    console.log('[App] Outfit change:', data.status, data.outfit);
+    if (data.status === 'loading') {
+      showBubble('Changing outfit...');
+      if (layeredSprite) layeredSprite.bounce();
+    } else if (data.status === 'ready' && data.sprites && layeredSprite) {
+      layeredSprite.swapOutfit(data.sprites);
+      showBubble(`New outfit: ${data.outfit}`);
+    } else if (data.status === 'error') {
+      showBubble('Outfit change failed');
+    }
+  });
+
   initMiniMode();
 
   console.log('[App] Initialized');
