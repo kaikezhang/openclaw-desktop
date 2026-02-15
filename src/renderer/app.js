@@ -445,6 +445,8 @@ function showBubble(content, isUser = false, instant = false) {
       bubbleText.textContent = content.includes('<') ? '' : content;
       if (content.includes('<')) bubbleText.innerHTML = content;
       lastBubbleText = content;
+      // Auto-scroll to bottom for long text
+      speechBubble.scrollTop = speechBubble.scrollHeight;
     } else {
       // Typewriter effect for non-TTS AI responses
       lastBubbleText = content;

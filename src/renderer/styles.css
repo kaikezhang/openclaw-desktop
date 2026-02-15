@@ -194,7 +194,7 @@ body {
   background: var(--bg-secondary);
   border-radius: 18px;
   border: 1px solid var(--border-color);
-  max-height: 120px;
+  max-height: 160px;
   overflow-y: auto;
   animation: bubbleIn 0.3s ease-out;
   -webkit-app-region: no-drag;
