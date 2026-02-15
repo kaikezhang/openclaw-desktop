@@ -1,0 +1,10 @@
+{
+  "name": "outfit-1771154389163",
+  "description": "\u4e00\u4e2a\u4f60\u770b\u4e66\u7684\u6837\u5b50",
+  "timestamp": "2026-02-15T11:20:33Z",
+  "sprites": {
+    "idle": "char-idle.png",
+    "blink": "char-blink.png",
+    "speaking": "char-speaking.png"
+  }
+}

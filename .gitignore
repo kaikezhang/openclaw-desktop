@@ -35,8 +35,7 @@ out/
 *.exe
 *.snap
 
-# Generated outfits (only keep presets like red-qipao in git)
-assets/character/wanwan/outfits/outfit-*/
+# Generated outfits — keep all in git for wardrobe sync
 
 # Layer generation intermediates
 assets/character/wanwan/layers/clean/
