@@ -218,15 +218,38 @@ export function registerIpcHandlers(deps: {
       const { listOutfits, getOutfit, setCurrentOutfit } = await import('./wardrobe');
       const outfits = listOutfits();
 
-      // Normalize description to name
+      // Chinese keyword → English alias mapping for common outfit terms
+      const OUTFIT_ALIASES: Record<string, string[]> = {
+        '旗袍': ['qipao', 'chinese dress'],
+        '校服': ['school uniform'],
+        '汉服': ['hanfu'],
+        '女仆': ['maid'],
+        '和服': ['kimono'],
+        '洛丽塔': ['lolita'],
+        '婚纱': ['wedding dress'],
+        '泳装': ['swimsuit', 'bikini'],
+      };
+
+      // Normalize description to name (preserve Chinese for matching)
       const name = description.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9_-]/g, '');
+      const descLower = description.toLowerCase();
+
+      // Build search terms: original description + any aliases
+      const searchTerms = [descLower];
+      for (const [cn, aliases] of Object.entries(OUTFIT_ALIASES)) {
+        if (descLower.includes(cn)) searchTerms.push(...aliases);
+      }
 
       // Check if we have it in wardrobe (exact match or fuzzy)
-      const match = outfits.find(o =>
-        o.name === name ||
-        o.description.toLowerCase().includes(description.toLowerCase()) ||
-        description.toLowerCase().includes(o.name)
-      );
+      const match = outfits.find(o => {
+        if (o.name === name) return true;
+        const oDesc = o.description.toLowerCase();
+        const oName = o.name.toLowerCase();
+        return searchTerms.some(term =>
+          oDesc.includes(term) || oName.includes(term) ||
+          term.includes(oName)
+        );
+      });
 
       if (match) {
         // Found in wardrobe — load immediately
@@ -240,17 +263,19 @@ export function registerIpcHandlers(deps: {
       }
 
       // Not in wardrobe — generate in background
+      // If name is empty (all CJK chars), use first alias or transliterate
+      const genName = name || (searchTerms.find(t => /^[a-z]/.test(t))?.replace(/\s+/g, '-') || `outfit-${Date.now()}`);
       const win = BrowserWindow.getAllWindows()[0];
-      win?.webContents.send('outfit:change', { status: 'loading', outfit: name });
+      win?.webContents.send('outfit:change', { status: 'loading', outfit: genName });
 
       // Run generate-outfit.py on the SERVER via SSH
       const { spawn } = require('child_process');
       const REMOTE_HOST = process.env.OPENCLAW_SSH_HOST || 'kaike@5.78.150.16';
       const REMOTE_PROJECT = '~/.openclaw/workspace/openclaw-desktop';
       const safeDesc = description.replace(/'/g, "'\\''"); // escape single quotes
-      const remoteCmd = `cd ${REMOTE_PROJECT} && PYTHONUNBUFFERED=1 uv run scripts/generate-outfit.py --outfit '${safeDesc}' --name '${name}'`;
+      const remoteCmd = `cd ${REMOTE_PROJECT} && PYTHONUNBUFFERED=1 uv run scripts/generate-outfit.py --outfit '${safeDesc}' --name '${genName}'`;
 
-      console.log(`[Outfit] Generating on server: "${description}" as "${name}"...`);
+      console.log(`[Outfit] Generating: "${description}" as "${genName}"...`);
 
       const proc = spawn('ssh', ['-o', 'StrictHostKeyChecking=no', REMOTE_HOST, remoteCmd], {
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -266,7 +291,7 @@ export function registerIpcHandlers(deps: {
           console.log(`[Outfit] Generation done, fetching sprites from server...`);
           try {
             const { execSync } = require('child_process');
-            const remoteDir = `${REMOTE_PROJECT}/assets/character/wanwan/outfits/${name}`;
+            const remoteDir = `${REMOTE_PROJECT}/assets/character/wanwan/outfits/${genName}`;
             const fetchSprite = (file: string): string => {
               return execSync(
                 `ssh -o StrictHostKeyChecking=no ${REMOTE_HOST} "base64 ${remoteDir}/${file}"`,
@@ -281,7 +306,7 @@ export function registerIpcHandlers(deps: {
             // Also save locally for caching
             const path = require('path');
             const fs = require('fs');
-            const localDir = path.join(__dirname, '..', '..', 'assets', 'character', 'wanwan', 'outfits', name);
+            const localDir = path.join(__dirname, '..', '..', 'assets', 'character', 'wanwan', 'outfits', genName);
             fs.mkdirSync(localDir, { recursive: true });
             fs.writeFileSync(path.join(localDir, 'char-idle.png'), Buffer.from(sprites.idle, 'base64'));
             fs.writeFileSync(path.join(localDir, 'char-blink.png'), Buffer.from(sprites.blink, 'base64'));
@@ -295,15 +320,15 @@ export function registerIpcHandlers(deps: {
               fs.writeFileSync(path.join(localDir, 'metadata.json'), metaJson);
             } catch {}
 
-            setCurrentOutfit(name);
-            win?.webContents.send('outfit:change', { status: 'ready', outfit: name, sprites });
+            setCurrentOutfit(genName);
+            win?.webContents.send('outfit:change', { status: 'ready', outfit: genName, sprites });
             console.log(`[Outfit] Done: ${name}`);
           } catch (fetchErr: any) {
             console.error(`[Outfit] Fetch error:`, fetchErr.message);
-            win?.webContents.send('outfit:change', { status: 'error', outfit: name, error: 'Failed to fetch sprites from server' });
+            win?.webContents.send('outfit:change', { status: 'error', outfit: genName, error: 'Failed to fetch sprites from server' });
           }
         } else {
-          win?.webContents.send('outfit:change', { status: 'error', outfit: name, error: `Generation failed (code ${code})` });
+          win?.webContents.send('outfit:change', { status: 'error', outfit: genName, error: `Generation failed (code ${code})` });
           console.error(`[Outfit] Failed: ${name}, code=${code}\n${output}`);
         }
       });
