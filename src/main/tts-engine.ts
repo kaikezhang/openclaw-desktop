@@ -164,8 +164,18 @@ export class TTSEngine {
             await new Promise(r => setTimeout(r, waitMs));
             retries++;
           } else {
-            console.error(`[TTS] Sentence #${item.sentenceId} failed:`, error);
-            break; // Skip this sentence
+            console.error(`[TTS] MiniMax failed for sentence #${item.sentenceId}, trying Edge TTS:`, error);
+            // Fallback to Edge TTS
+            const edgeAudio = await this.callEdgeTTS(item.sentence);
+            if (edgeAudio) {
+              this.send('tts:audioChunk', {
+                sentenceId: item.sentenceId,
+                audio: edgeAudio,
+                text: item.sentence,
+                isLast: this.queue.length === 0,
+              });
+            }
+            break;
           }
         }
       }
@@ -179,7 +189,29 @@ export class TTSEngine {
     try {
       return await this.callMiniMaxTTS(text);
     } catch (error) {
-      console.error('[TTS] Synthesize failed:', error);
+      console.error('[TTS] MiniMax failed, trying Edge TTS fallback:', error);
+      return this.callEdgeTTS(text);
+    }
+  }
+
+  /** Edge TTS fallback (free, no API key needed). */
+  private async callEdgeTTS(text: string): Promise<string | null> {
+    try {
+      const { EdgeTTS } = require('node-edge-tts');
+      const tts = new EdgeTTS({ voice: 'zh-CN-XiaoxiaoNeural' });
+      const path = require('path');
+      const fs = require('fs');
+      const { app } = require('electron');
+      const tmpDir = path.join(app.getPath('userData'), 'tts-cache');
+      fs.mkdirSync(tmpDir, { recursive: true });
+      const tmpFile = path.join(tmpDir, `edge-${Date.now()}.mp3`);
+      await tts.ttsPromise(text, tmpFile);
+      const audioBuffer = fs.readFileSync(tmpFile);
+      fs.unlinkSync(tmpFile);
+      console.log(`[TTS] Edge TTS fallback: ${audioBuffer.length} bytes`);
+      return audioBuffer.toString('base64');
+    } catch (err: any) {
+      console.error('[TTS] Edge TTS fallback failed:', err.message);
       return null;
     }
   }

@@ -1,0 +1,10 @@
+{
+  "name": "wedding-dress",
+  "description": "\u5a5a\u7eb1",
+  "timestamp": "2026-02-15T12:03:18Z",
+  "sprites": {
+    "idle": "char-idle.png",
+    "blink": "char-blink.png",
+    "speaking": "char-speaking.png"
+  }
+}
