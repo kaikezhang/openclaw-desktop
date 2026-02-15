@@ -246,9 +246,11 @@ export class OpenClawClient {
             return;
           }
 
-          // Handle streamed chat events
+          // Handle streamed chat events (only for our session)
           if (msg.type === 'event' && msg.event === 'chat') {
             const payload = msg.payload || {};
+            // Filter out events from other sessions
+            if (payload.sessionKey && payload.sessionKey !== this.sessionKey) return;
 
             if (payload.state === 'delta') {
               // payload.message.content is the full accumulated text so far
@@ -387,9 +389,12 @@ export class OpenClawClient {
       this.config.onOutfitChange?.(payload);
     }
 
-    // Forward all events to callback
+    // Forward events to callback (only our session or session-less events)
     if (msg.type === 'event') {
-      this.config.onEvent?.(msg);
+      const sk = msg.payload?.sessionKey;
+      if (!sk || sk === this.sessionKey) {
+        this.config.onEvent?.(msg);
+      }
     }
 
     // Route responses to pending requests
