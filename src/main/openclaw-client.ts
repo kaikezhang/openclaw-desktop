@@ -63,6 +63,9 @@ export class OpenClawClient {
   private backoffMs = 1000;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // Chat concurrency lock — only one chat at a time
+  private chatLock: Promise<any> = Promise.resolve();
+
   // Tick keepalive
   private tickIntervalMs = 30_000;
   private lastTick: number | null = null;
@@ -212,6 +215,21 @@ export class OpenClawClient {
    * Send a chat message and stream the response.
    */
   async chat(message: string, callbacks: ChatStreamCallbacks): Promise<string> {
+    // Serialize chat calls — gateway can only handle one at a time per session
+    const prevLock = this.chatLock;
+    let releaseLock: () => void;
+    this.chatLock = new Promise<void>(r => { releaseLock = r; });
+    try {
+      await prevLock;
+    } catch { /* ignore previous failures */ }
+    try {
+      return await this._doChat(message, callbacks);
+    } finally {
+      releaseLock!();
+    }
+  }
+
+  private async _doChat(message: string, callbacks: ChatStreamCallbacks): Promise<string> {
     await this.ensureConnected();
 
     const reqId = randomUUID();

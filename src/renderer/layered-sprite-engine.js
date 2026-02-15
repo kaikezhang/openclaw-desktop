@@ -589,19 +589,18 @@ class LayeredSpriteEngine {
   // ===== Internal =====
 
   _setExpression(expr) {
-    if (!this._sprites[expr] && expr !== 'blink') expr = 'idle';
-    // Blink uses squash effect on idle sprite — no image swap, zero flicker
-    if (expr === 'blink') {
-      this._blinkSquash = true;
-      this._currentExpression = 'blink';
-      return;
-    }
+    if (!this._sprites[expr]) expr = 'idle';
     if (this._currentExpression === 'blink') {
       this._blinkSquash = false;
     }
+    if (expr === 'blink') {
+      this._blinkSquash = true;
+    }
     if (expr === this._currentExpression) return;
+    // Show the target expression sprite, hide all others
+    // For blink: show blink sprite (actual closed-eyes image)
     Object.entries(this._sprites).forEach(([key, img]) => {
-      img.style.transition = 'opacity 0.3s ease';
+      img.style.transition = expr === 'blink' ? 'opacity 0.08s ease' : 'opacity 0.3s ease';
       img.style.opacity = key === expr ? '1' : '0';
     });
     this._currentExpression = expr;
