@@ -372,6 +372,11 @@ class LayeredSpriteEngine {
     this.springs.bounceY.pos = 0;
     this.springs.bounceY.vel = 0;
 
+    // Reset expression to idle and restart blink cycle
+    this._currentExpression = null; // force re-apply
+    this._setExpression('idle');
+    this._scheduleNextBlink();
+
     // Gentle entrance bounce
     this.springs.squashX.pos = 1.06;
     this.springs.squashY.pos = 0.94;
@@ -399,6 +404,9 @@ class LayeredSpriteEngine {
         this._sprites[key].src = `${this._basePath}/${file}`;
       }
     }
+    this._currentExpression = null;
+    this._setExpression('idle');
+    this._scheduleNextBlink();
     console.log('[LayeredSpriteEngine] Reset to default outfit');
   }
 
