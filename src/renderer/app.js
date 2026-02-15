@@ -653,8 +653,12 @@ async function playTTSForReply(reply) {
 
 function detectOutfitRequest(text) {
   // Detect outfit change intent — returns the outfit description or null
+  // Skip if text is clearly not about changing outfit
+  if (/穿着/.test(text) && !/换/.test(text)) return null;
+  if (/自拍|拍照|照片|photo|selfie|发[到给]/.test(text)) return null;
+
   const patterns = [
-    /穿[个一件套身]?(.{1,20}?)(?:吧|呗|看看|的样子|$)/,
+    /(?:想|要|我要|给我)穿[个一件套身]?(.{1,20}?)(?:吧|呗|看看|的样子|$)/,
     /换[上成]?[个一件套身]?(.{1,20}?)(?:吧|呗|看看|$)/,
     /(?:想看你|给我)穿[个一件套]?(.{1,20})/,
     /wear\s+(?:a\s+)?(.{1,30})/i,
