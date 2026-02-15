@@ -357,8 +357,12 @@ class LayeredSpriteEngine {
     this.springs.squashY.pos = 1.15;
     this.springs.bounceY.vel = -250;
 
-    // Resume animation loop
+    // Resume animation loop + ensure wrapper style is clean
     this._outfitTransition = false;
+    if (this._wrapper) {
+      this._wrapper.style.opacity = '1';
+      this._wrapper.style.transition = '';
+    }
 
     // Secondary bounce after a beat
     await new Promise(r => setTimeout(r, 300));
