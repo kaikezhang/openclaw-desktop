@@ -629,9 +629,16 @@ characterArea.addEventListener('contextmenu', (e) => {
 // ===== Audio Visualization Loop =====
 function startVizLoop() {
   function vizFrame() {
-    if (glassOrbCharacter && audioPlayerQueue) {
+    if (audioPlayerQueue) {
       const vol = audioPlayerQueue.getVolume();
-      glassOrbCharacter.updateVisualizer(vol);
+      // Glass orb visualizer
+      if (glassOrbCharacter) {
+        glassOrbCharacter.updateVisualizer(vol);
+      }
+      // Live2D lip sync
+      if (live2dManager?.isLoaded) {
+        live2dManager.setLipSync(vol);
+      }
     }
     requestAnimationFrame(vizFrame);
   }
