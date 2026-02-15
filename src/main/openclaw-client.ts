@@ -63,10 +63,32 @@ export class OpenClawClient {
     this.deviceIdentity = loadOrCreateDeviceIdentity();
   }
 
-  /** Reset to a new session (generates new session key). */
+  /** Reset the session by sending /reset to the gateway. */
+  async resetSession(): Promise<string> {
+    console.log(`[OpenClaw] Resetting session: ${this.sessionKey}`);
+    try {
+      await this.ensureConnected();
+      // Send /reset as a chat message to clear session history
+      const reqId = randomUUID();
+      this.ws!.send(JSON.stringify({
+        type: 'req',
+        id: reqId,
+        method: 'chat.send',
+        params: {
+          sessionKey: this.sessionKey,
+          idempotencyKey: randomUUID(),
+          message: '/reset',
+        },
+      }));
+    } catch (e) {
+      console.warn('[OpenClaw] Reset failed:', (e as Error).message);
+    }
+    return this.sessionKey;
+  }
+
+  // Kept for backward compat
   newSession(): string {
-    this.sessionKey = `agent:main:desktop-${Date.now()}`;
-    console.log(`[OpenClaw] New session: ${this.sessionKey}`);
+    this.resetSession().catch(() => {});
     return this.sessionKey;
   }
 
