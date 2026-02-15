@@ -49,8 +49,8 @@ class LayeredSpriteEngine {
     this._mouseX = 0;
 
     // DOM refs
-    this._spriteA = null; // current visible sprite
-    this._spriteB = null; // crossfade target
+    this._sprites = {}; // expression -> img element
+    this._currentExpression = 'idle';
     this._glowEl = null;
     this._particleContainer = null;
     this._particles = [];
@@ -116,35 +116,26 @@ class LayeredSpriteEngine {
     `;
     this.container.appendChild(this._wrapper);
 
-    // Two image elements for crossfade
+    // One img element per expression — no src swapping, just toggle visibility
     const spriteCSS = `
       display: block; width: 100%; height: 100%;
       object-fit: cover; object-position: center bottom;
       position: absolute; bottom: 0; left: 0;
       filter: drop-shadow(0 6px 24px rgba(0,0,0,0.18));
-      transition: opacity 0.3s ease;
     `;
-    this._spriteA = document.createElement('img');
-    this._spriteA.style.cssText = spriteCSS;
-    this._spriteA.src = `${this._basePath}/${this._assets.idle}`;
-    this._spriteA.style.opacity = '1';
-    this._wrapper.appendChild(this._spriteA);
-
-    this._spriteB = document.createElement('img');
-    this._spriteB.style.cssText = spriteCSS;
-    this._spriteB.src = `${this._basePath}/${this._assets.idle}`;
-    this._spriteB.style.opacity = '0';
-    this._wrapper.appendChild(this._spriteB);
-
-    this._currentSprite = 'A'; // which one is visible
-
-    // Preload all sprite images to avoid flicker on first swap
-    this._preloaded = {};
+    this._sprites = {};
     Object.entries(this._assets).forEach(([key, file]) => {
-      const img = new Image();
+      const img = document.createElement('img');
+      img.style.cssText = spriteCSS;
       img.src = `${this._basePath}/${file}`;
-      this._preloaded[key] = img;
+      img.style.opacity = key === 'idle' ? '1' : '0';
+      img.style.transition = 'opacity 0.3s ease';
+      this._wrapper.appendChild(img);
+      this._sprites[key] = img;
     });
+    this._currentExpression = 'idle';
+    // Keep references for animation code that uses _spriteA
+    this._spriteA = this._sprites.idle;
 
     // Mouse tracking
     this.container.addEventListener('mousemove', (e) => {
@@ -289,28 +280,15 @@ class LayeredSpriteEngine {
   // ===== Internal =====
 
   _setExpression(expr) {
-    const src = `${this._basePath}/${this._assets[expr] || this._assets.idle}`;
-    const isBlink = expr === 'blink' || this._isBlinking;
-    const swap = (target, old, label) => {
-      // For blink: instant swap (no transition, blink is too fast for crossfade)
-      if (isBlink) {
-        target.style.transition = 'none';
-        old.style.transition = 'none';
-      } else {
-        target.style.transition = 'opacity 0.3s ease';
-        old.style.transition = 'opacity 0.3s ease';
-      }
-      target.style.opacity = '1';
-      old.style.opacity = '0';
-      this._currentSprite = label;
-    };
-    if (this._currentSprite === 'A') {
-      this._spriteB.src = src;
-      swap(this._spriteB, this._spriteA, 'B');
-    } else {
-      this._spriteA.src = src;
-      swap(this._spriteA, this._spriteB, 'A');
-    }
+    if (!this._sprites[expr]) expr = 'idle';
+    if (expr === this._currentExpression) return;
+    const isBlink = expr === 'blink' || this._currentExpression === 'blink';
+    // Hide old, show new — instant for blink, crossfade for others
+    Object.entries(this._sprites).forEach(([key, img]) => {
+      img.style.transition = isBlink ? 'none' : 'opacity 0.3s ease';
+      img.style.opacity = key === expr ? '1' : '0';
+    });
+    this._currentExpression = expr;
   }
 
   _doBlink() {
