@@ -110,7 +110,7 @@ export class OpenClawClient {
     if (this.connectPromise) return this.connectPromise;
     this.closed = false;
 
-    this.connectPromise = new Promise<void>((resolve, reject) => {
+    const p = new Promise<void>((resolve, reject) => {
       const url = `ws://localhost:${this.config.port}`;
       console.log(`[OpenClaw] Connecting to ${url}...`);
 
@@ -176,6 +176,8 @@ export class OpenClawClient {
         }
       });
     });
+    this.connectPromise = p;
+    return p;
   }
 
   /** Disconnect from the gateway. */
