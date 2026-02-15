@@ -310,18 +310,30 @@ async function handleCommand(command) {
   if (bubbleScrollTimer) { clearInterval(bubbleScrollTimer); bubbleScrollTimer = null; }
 
   try {
+    // Check if user is requesting outfit change BEFORE sending to AI
+    const outfitRequest = detectOutfitRequest(command);
+    if (outfitRequest) {
+      console.log('[App] Outfit request detected:', outfitRequest);
+      // Try loading from wardrobe immediately
+      window.electronAPI?.loadOutfit?.(outfitRequest).then((res) => {
+        if (res?.success) {
+          console.log('[App] Outfit loaded from wardrobe:', outfitRequest);
+        } else {
+          console.log('[App] Outfit not in wardrobe, AI will handle:', outfitRequest);
+        }
+      });
+    }
+
     const result = await window.electronAPI.chat(command);
     let reply = cleanMarkdown(result.message || '');
     lastAIResponse = reply;
 
-    // Check for outfit change trigger: __OUTFIT:outfit-name__
+    // Also check AI reply for __OUTFIT:name__ trigger
     const outfitMatch = reply.match(/__OUTFIT:([a-zA-Z0-9_-]+)__/);
     if (outfitMatch) {
       const outfitName = outfitMatch[1];
       reply = reply.replace(/__OUTFIT:[a-zA-Z0-9_-]+__/g, '').trim();
       lastAIResponse = reply;
-      console.log('[App] Outfit trigger detected:', outfitName);
-      // Request outfit load from main process
       window.electronAPI?.loadOutfit?.(outfitName);
     }
 
@@ -540,6 +552,27 @@ function fadeOutBubble() {
     speechBubble.style.opacity = '1';
     speechBubble.style.transition = '';
   }, 300);
+}
+
+// ===== Outfit Detection =====
+function detectOutfitRequest(text) {
+  // Map Chinese clothing keywords to outfit names in wardrobe
+  const outfitMap = {
+    '旗袍': 'red-qipao',
+    'qipao': 'red-qipao',
+    '红裙': 'red-qipao',
+  };
+  const lower = text.toLowerCase();
+  for (const [keyword, name] of Object.entries(outfitMap)) {
+    if (lower.includes(keyword)) return name;
+  }
+  // Generic outfit change detection — return the raw request for server-side generation
+  const changePatterns = [/穿(.{1,10})/, /换(.{1,10})(衣服|装|服)/, /outfit.*?(\w+)/i];
+  for (const p of changePatterns) {
+    const m = text.match(p);
+    if (m) return m[1].trim().replace(/\s+/g, '-').toLowerCase();
+  }
+  return null;
 }
 
 // ===== Utilities =====
