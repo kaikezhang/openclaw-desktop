@@ -118,6 +118,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         window._outfitTTSPending = null;
         showBubble(escapeHtml(reply));
         playTTSForReply(reply);
+      } else if (!window._outfitTTSHold) {
+        // No pending TTS — say something about the new outfit
+        const desc = data.description || data.outfit || '新衣服';
+        const lines = [
+          `换好啦～${desc}，好看吗？✨`,
+          `${desc}上身！主人觉得怎么样？🎀`,
+          `哒哒！${desc}的晚晚登场～好看吧！💕`,
+          `${desc}换好了！是不是很可爱？🐱`,
+        ];
+        const line = lines[Math.floor(Math.random() * lines.length)];
+        showBubble(escapeHtml(line));
+        playTTSForReply(line);
       }
     } else if (data.status === 'error') {
       // Release held TTS on error too
