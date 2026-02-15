@@ -94,7 +94,7 @@ export class OpenClawClient {
       const timeout = setTimeout(() => {
         reject(new Error('OpenClaw connection timeout'));
         this.ws?.close();
-      }, 10_000);
+      }, 30_000);
 
       let connectResolved = false;
 
