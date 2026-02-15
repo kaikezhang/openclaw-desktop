@@ -480,6 +480,17 @@ class LayeredSpriteEngine {
       rotate(${rotate.toFixed(2)}deg)
     `;
 
+    // Speaking mouth animation — subtle scaleY pulsation on speaking sprite
+    if (this._sprites.speaking) {
+      if (this.state === 'speaking') {
+        const mouthPulse = 1.0 + Math.abs(s.speakBounce.pos) * 0.018;
+        this._sprites.speaking.style.transformOrigin = 'center 75%';
+        this._sprites.speaking.style.transform = `scaleY(${mouthPulse.toFixed(4)})`;
+      } else {
+        this._sprites.speaking.style.transform = '';
+      }
+    }
+
     // Animate particles
     this._updateParticles(now);
 
