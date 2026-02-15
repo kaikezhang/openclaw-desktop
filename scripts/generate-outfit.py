@@ -258,9 +258,12 @@ def main():
     # ── Step 1: Generate idle ──
     print("\n[1/6] Generating idle sprite...")
     idle_prompt = (
-        f"Change this character's outfit to {args.outfit}. "
-        "Keep the EXACT same character, face, hair, pose, position, "
-        "composition, background. Only change the clothing."
+        f"Change this character's complete outfit and accessories to: {args.outfit}. "
+        "You may freely replace or remove the cat ear headband and any accessories "
+        "to match the new outfit theme — add fitting accessories like hats, ribbons, "
+        "headphones, flowers, glasses, jewelry, etc. as appropriate. "
+        "Keep the EXACT same face, eyes, hair color, hair length, pose, position, "
+        "composition, and transparent background. Change clothing AND accessories."
     )
     idle_img = generate_with_retry(
         client, ref_img, idle_prompt, ref_bbox, ref_img, "idle"
