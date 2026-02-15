@@ -127,12 +127,9 @@ class LayeredSpriteEngine {
 
   async loadLayers(basePath) {
     const imageMap = {
-      body: basePath + '/body.png',
-      'head-idle': basePath + '/head-idle.png',
-      'head-speaking': basePath + '/head-speaking.png',
-      hair: basePath + '/hair-all.png',
-      ears: basePath + '/cat-ears.png',
-      'face-only': basePath + '/face-only.png',
+      'char-idle': basePath + '/char-idle.png',
+      'char-speaking': basePath + '/char-speaking.png',
+      'char-blink': basePath + '/char-blink.png',
     };
 
     const promises = Object.entries(imageMap).map(([key, src]) => {
@@ -170,6 +167,7 @@ class LayeredSpriteEngine {
   setState(state) {
     const prev = this.currentState;
     this.currentState = state;
+    this._lastStateChangeT = this.t;
 
     if (state === 'speaking' && prev !== 'speaking') {
       // Bounce impulse on start speaking
@@ -220,75 +218,63 @@ class LayeredSpriteEngine {
 
     // Speaking bounce (damped spring)
     if (this.currentState === 'speaking') {
-      // Continuous small bounces
       this._speakBounceV += Math.sin(this.t * 8) * 0.3;
     }
     this._speakBounceV += (0 - this._speakBounce) * 0.15;
     this._speakBounceV *= 0.85;
     this._speakBounce += this._speakBounceV;
 
-    // Head spring
+    // Head/body spring (the whole character moves)
     const headTargetY = this._speakBounce;
     const headTargetX = this._lookX * 3;
-    const headTargetRot = this._lookX * 2 + (this.currentState === 'thinking' ? Math.sin(this.t * 1.5) * 3 : 0);
+    const headTargetRot = this._lookX * 1.5 + (this.currentState === 'thinking' ? Math.sin(this.t * 1.5) * 2.5 : 0);
     this._updateSpring(this._headSpring, headTargetX, headTargetY, headTargetRot, 0.12, 0.82);
 
-    // Hair follows head with delay
-    this._updateSpring(this._hairSpring, this._headSpring.x * 0.8, this._headSpring.y * 0.6, this._headSpring.rot * 1.2, 0.06, 0.88);
-
-    // Ears follow head with more delay
-    this._updateSpring(this._earSpring, this._headSpring.x * 0.7, this._headSpring.y * 0.5, this._headSpring.rot * 0.8, 0.04, 0.9);
-    // Independent ear bounce
-    if (this.currentState === 'speaking') {
-      this._earSpring.y += Math.sin(this.t * 6) * 0.5;
-    }
-
     // === Breathing ===
-    const breathScale = 1.0 + Math.sin(this.t * 2) * 0.008;
-    const breathY = Math.sin(this.t * 2) * 1.5;
+    const breathScale = 1.0 + Math.sin(this.t * 2) * 0.006;
+    const breathY = Math.sin(this.t * 2) * 2;
+
+    // Subtle sway
+    const swayX = Math.sin(this.t * 0.7) * 1.5;
+    const swayRot = Math.sin(this.t * 0.5) * 0.3;
 
     // === Blink ===
     this._updateBlink(dt);
-
-    // === Draw layers (back to front) ===
-
-    // Body
-    this._drawLayer('body', {
-      scaleY: breathScale,
-      offsetY: breathY,
-    });
-
-    // Head (idle or speaking, with blink overlay)
-    const headImg = this.currentState === 'speaking' ? 'head-speaking' : 'head-idle';
     const blinkAlpha = this._getBlinkAlpha();
 
-    this._drawLayer(headImg, {
-      offsetX: this._headSpring.x,
-      offsetY: this._headSpring.y + breathY * 0.5,
-      rotation: this._headSpring.rot,
-    });
-
-    // Blink effect: draw closed-eye version on top with alpha
-    if (blinkAlpha > 0 && this._images['face-only']) {
-      // We'll simulate blink by slightly squishing the eye area
-      // Since we don't have a separate blink layer, we use a CSS-like approach:
-      // draw a skin-colored band over the eye area
-      this._drawBlinkOverlay(blinkAlpha);
+    // === Choose which character image to draw ===
+    let charImg;
+    if (blinkAlpha > 0.5 && this._images['char-blink']) {
+      charImg = 'char-blink';
+    } else if (this.currentState === 'speaking') {
+      charImg = 'char-speaking';
+    } else {
+      charImg = 'char-idle';
     }
 
-    // Hair
-    this._drawLayer('hair', {
-      offsetX: this._hairSpring.x + Math.sin(this.t * 0.5) * 0.8,
-      offsetY: this._hairSpring.y + breathY * 0.3,
-      rotation: this._hairSpring.rot,
+    // === Draw character ===
+    this._drawLayer(charImg, {
+      offsetX: this._headSpring.x + swayX,
+      offsetY: this._headSpring.y + breathY,
+      rotation: this._headSpring.rot + swayRot,
+      scaleY: breathScale,
     });
 
-    // Cat ears
-    this._drawLayer('ears', {
-      offsetX: this._earSpring.x + Math.sin(this.t * 0.9) * 0.4,
-      offsetY: this._earSpring.y + breathY * 0.2,
-      rotation: this._earSpring.rot + Math.sin(this.t * 1.3) * 0.5,
-    });
+    // === Cross-fade between expressions ===
+    // When transitioning to speaking, briefly show both for smooth blend
+    if (this.currentState === 'speaking' && this._images['char-idle'] && charImg === 'char-speaking') {
+      // Fade out idle
+      const fadeAlpha = Math.max(0, 1 - (this.t - (this._lastStateChangeT || 0)) * 3);
+      if (fadeAlpha > 0.01) {
+        this._drawLayer('char-idle', {
+          offsetX: this._headSpring.x + swayX,
+          offsetY: this._headSpring.y + breathY,
+          rotation: this._headSpring.rot + swayRot,
+          scaleY: breathScale,
+          alpha: fadeAlpha,
+        });
+      }
+    }
 
     this._animFrame = requestAnimationFrame(() => this._animate());
   }
@@ -326,33 +312,6 @@ class LayeredSpriteEngine {
     ctx.scale(sx, sy);
     ctx.drawImage(img, -drawW / 2, -drawH / 2, drawW, drawH);
 
-    ctx.restore();
-  }
-
-  _drawBlinkOverlay(alpha) {
-    // Simple blink: draw a thin skin-colored rectangle over the eye area
-    // This simulates closing eyes without needing a separate blink sprite
-    const ctx = this.ctx;
-    const ch = this._canvasH;
-    const cw = this._canvasW;
-
-    // Approximate eye area (relative to canvas)
-    const eyeY = ch * 0.32 + this._headSpring.y;
-    const eyeH = ch * 0.06 * alpha; // grows as blink progresses
-    const eyeW = cw * 0.22;
-    const eyeX = cw / 2 - eyeW / 2 + this._headSpring.x;
-
-    ctx.save();
-    ctx.globalAlpha = alpha * 0.9;
-    ctx.fillStyle = '#f0d0c0'; // skin color approximation
-    ctx.beginPath();
-    // Two eye-shaped ellipses
-    const gap = eyeW * 0.15;
-    // Left eye
-    ctx.ellipse(eyeX + eyeW * 0.3, eyeY, eyeW * 0.18, eyeH, 0, 0, Math.PI * 2);
-    // Right eye
-    ctx.ellipse(eyeX + eyeW * 0.7, eyeY, eyeW * 0.18, eyeH, 0, 0, Math.PI * 2);
-    ctx.fill();
     ctx.restore();
   }
 

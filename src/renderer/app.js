@@ -120,7 +120,7 @@ function initCharacterMode(mode) {
       if (window.LayeredSpriteEngine && spriteContainer) {
         spriteContainer.style.display = 'block';
         layeredSprite = new LayeredSpriteEngine('character-sprite-container');
-        layeredSprite.loadLayers('../../assets/character/wanwan/layers/final').then(() => {
+        layeredSprite.loadLayers('../../assets/character/wanwan/layers/final').then(() => { if (!layeredSprite) return;
           layeredSprite.start();
         });
         console.log('[App] Using LayeredSpriteEngine (sprite mode)');
