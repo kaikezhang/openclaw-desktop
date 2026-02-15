@@ -146,36 +146,42 @@ export class TTSEngine {
 
       while (retries <= maxRetries && !this.stopped) {
         try {
-          const audioBase64 = await this.callMiniMaxTTS(item.sentence);
-          if (audioBase64) {
+          // Try Edge TTS first (free, reliable)
+          const edgeAudio = await this.callEdgeTTS(item.sentence);
+          if (edgeAudio) {
             this.send('tts:audioChunk', {
               sentenceId: item.sentenceId,
-              audio: audioBase64,
+              audio: edgeAudio,
               text: item.sentence,
               isLast: this.queue.length === 0,
             });
+            break; // Success
           }
-          break; // Success
+          throw new Error('Edge TTS returned null');
         } catch (error: any) {
-          const isRateLimit = error?.message?.includes('rate limit');
-          if (isRateLimit && retries < maxRetries) {
-            const waitMs = (retries + 1) * 2000; // 2s, 4s, 6s
-            console.warn(`[TTS] Rate limited, waiting ${waitMs}ms before retry...`);
-            await new Promise(r => setTimeout(r, waitMs));
-            retries++;
-          } else {
-            console.error(`[TTS] MiniMax failed for sentence #${item.sentenceId}, trying Edge TTS:`, error);
-            // Fallback to Edge TTS
-            const edgeAudio = await this.callEdgeTTS(item.sentence);
-            if (edgeAudio) {
+          console.error(`[TTS] Edge TTS failed for sentence #${item.sentenceId}, trying MiniMax:`, error);
+          try {
+            const audioBase64 = await this.callMiniMaxTTS(item.sentence);
+            if (audioBase64) {
               this.send('tts:audioChunk', {
                 sentenceId: item.sentenceId,
-                audio: edgeAudio,
+                audio: audioBase64,
                 text: item.sentence,
                 isLast: this.queue.length === 0,
               });
             }
             break;
+          } catch (mmError: any) {
+            const isRateLimit = mmError?.message?.includes('rate limit');
+            if (isRateLimit && retries < maxRetries) {
+              const waitMs = (retries + 1) * 2000;
+              console.warn(`[TTS] MiniMax rate limited, waiting ${waitMs}ms before retry...`);
+              await new Promise(r => setTimeout(r, waitMs));
+              retries++;
+            } else {
+              console.error(`[TTS] Both Edge TTS and MiniMax failed for sentence #${item.sentenceId}:`, mmError);
+              break;
+            }
           }
         }
       }
@@ -187,10 +193,12 @@ export class TTSEngine {
   /** Generate speech for a single text (non-streaming, for simple prompts). */
   async synthesize(text: string): Promise<string | null> {
     try {
-      return await this.callMiniMaxTTS(text);
+      const edgeAudio = await this.callEdgeTTS(text);
+      if (edgeAudio) return edgeAudio;
+      throw new Error('Edge TTS returned null');
     } catch (error) {
-      console.error('[TTS] MiniMax failed, trying Edge TTS fallback:', error);
-      return this.callEdgeTTS(text);
+      console.error('[TTS] Edge TTS failed, trying MiniMax fallback:', error);
+      return this.callMiniMaxTTS(text);
     }
   }
 

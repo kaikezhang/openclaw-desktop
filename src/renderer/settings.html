@@ -73,12 +73,6 @@
     </div>
   </div>
 
-  <h2>Live2D Model</h2>
-  <div class="field">
-    <label>Model Path (relative to assets/models/)</label>
-    <input type="text" id="live2dModelPath" placeholder="Hiyori/Hiyori.model3.json">
-  </div>
-
   <h2>Shortcuts</h2>
   <div class="row">
     <div class="field">
@@ -98,20 +92,6 @@
       <option value="dark">Dark (Default)</option>
       <option value="light">Light</option>
       <option value="purple">Purple Night</option>
-    </select>
-  </div>
-  <div class="field">
-    <label>Character Mode</label>
-    <select id="characterMode" style="width:100%;padding:8px 10px;border:1px solid #333;border-radius:6px;background:#16162b;color:#e0e0e0;font-size:13px;">
-      <option value="glassorb">🫧 Glass Orb (Fluid ball with eyes)</option>
-      <option value="sprite">🎨 Sprite (Wanwan portrait)</option>
-      <option value="live2d">🎭 Live2D (Hiyori model)</option>
-    </select>
-  </div>
-  <div class="field">
-    <label>Live2D Model</label>
-    <select id="live2dModelSelect" style="width:100%;padding:8px 10px;border:1px solid #333;border-radius:6px;background:#16162b;color:#e0e0e0;font-size:13px;">
-      <option value="Hiyori/Hiyori.model3.json">Hiyori (Default)</option>
     </select>
   </div>
 
@@ -139,9 +119,9 @@
     const fields = [
       'openclawPort', 'openclawToken',
       'minimaxApiKey', 'minimaxGroupId', 'minimaxModel', 'minimaxVoiceId',
-      'live2dModelPath', 'hotkeyToggleRecord', 'hotkeyToggleMini',
+      'hotkeyToggleRecord', 'hotkeyToggleMini',
     ];
-    const selects = ['theme', 'characterMode'];
+    const selects = ['theme'];
     const checkboxes = ['alwaysOnTop', 'startMinimized'];
 
     async function loadSettings() {

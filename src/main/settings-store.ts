@@ -9,7 +9,6 @@ export interface AppSettings {
   minimaxGroupId: string;
   minimaxModel: string;
   minimaxVoiceId: string;
-  live2dModelPath: string;
   theme: 'dark' | 'light' | 'purple';
   hotkeyToggleMini: string;
   startMinimized: boolean;
@@ -23,7 +22,6 @@ const defaults: AppSettings = {
   minimaxGroupId: '',
   minimaxModel: 'speech-02-hd',
   minimaxVoiceId: 'Chinese (Mandarin)_Warm_Girl',
-  live2dModelPath: 'Hiyori/Hiyori.model3.json',
   theme: 'dark',
   hotkeyToggleMini: 'CommandOrControl+Shift+M',
   startMinimized: false,

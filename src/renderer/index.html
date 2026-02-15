@@ -7,8 +7,6 @@
   <link rel="stylesheet" href="styles.css">
   <!-- Vendor libs (bundled locally for offline use) -->
   <script src="vendor/iconify.min.js"></script>
-  <script src="vendor/pixi.min.js"></script>
-  <script src="vendor/cubism4.min.js"></script>
 </head>
 <body>
   <!-- Mini-orb mode -->
@@ -34,13 +32,10 @@
 
     <!-- Character area -->
     <div class="character-area" id="character-area">
-      <canvas id="aura-canvas"></canvas>
       <!-- Listening pulse ring -->
       <div class="listening-pulse-ring hidden" id="listening-pulse-ring">
         <div class="ring-3"></div>
       </div>
-      <!-- Live2D canvas (PixiJS renders here, hidden when using sprite mode) -->
-      <canvas id="live2d-canvas"></canvas>
       <!-- Character sprite (CSS animation mode) -->
       <div id="character-sprite-container" style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:6;"></div>
       <!-- Tap hint -->
@@ -87,9 +82,6 @@
 
     <!-- Text input -->
     <div class="text-input-area">
-      <button id="mode-toggle-btn" class="tiny-btn" title="Toggle pixel/portrait mode">
-        <span class="iconify" data-icon="mdi:gamepad-variant"></span>
-      </button>
       <button id="history-btn" class="tiny-btn" title="Chat History">
         <span class="iconify" data-icon="mdi:message-text-clock"></span>
       </button>
@@ -101,12 +93,9 @@
   </div>
 
   <script src="i18n.js"></script>
-  <script src="orb.js"></script>
   <script src="audio-player.js"></script>
   <script src="character-animator.js"></script>
-  <script src="glass-orb.js"></script>
   <script src="layered-sprite-engine.js"></script>
-  <script src="live2d-manager.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

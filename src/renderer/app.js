@@ -2,8 +2,6 @@
 // States: idle | thinking | speaking
 let appState = 'idle';
 let isProcessing = false;
-let auraAnimator = null;
-let live2dManager = null;
 let characterAnimator = null;
 let audioPlayerQueue = null;
 let streamingTTSStarted = false;
@@ -42,23 +40,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   } catch (e) { /* ignore */ }
 
-  // Aura canvas
-  const auraCanvas = document.getElementById('aura-canvas');
-  if (auraCanvas && window.OrbAnimator) {
-    auraAnimator = new OrbAnimator(auraCanvas);
-  }
-
-  // Character mode: 'sprite' | 'glassorb' | 'live2d'
-  // Load saved preference, default to sprite
-  let characterMode = 'sprite';
-  try {
-    const settings = await window.electronAPI?.settings?.get();
-    if (settings?.characterMode) characterMode = settings.characterMode;
-  } catch (e) { /* ignore */ }
-
-  currentCharModeIndex = CHARACTER_MODES.indexOf(characterMode);
-  if (currentCharModeIndex < 0) currentCharModeIndex = 0;
-  initCharacterMode(characterMode);
+  // Initialize sprite mode
+  initCharacterMode();
 
   // Audio player queue
   if (window.AudioPlayerQueue) {
@@ -107,9 +90,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else if (data.status === 'ready' && data.sprites && layeredSprite) {
       layeredSprite.swapOutfit(data.sprites);
 
-      // Wardrobe outfit changes no longer notify gateway (was blocking chat queue)
-      // Selfie generation can be triggered manually if needed
-
       // Release held streaming TTS audio
       if (window._outfitTTSHold) {
         window._outfitTTSHold = false;
@@ -156,95 +136,35 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ===== Character Mode Management =====
-let glassOrbCharacter = null;
 let layeredSprite = null;
 
-function initCharacterMode(mode) {
-  // Stop all existing character renderers
+function initCharacterMode() {
+  // Stop existing character renderers
   if (characterAnimator) { characterAnimator.stop(); characterAnimator = null; }
-  if (glassOrbCharacter) { glassOrbCharacter.stop(); glassOrbCharacter = null; }
   if (layeredSprite) { layeredSprite.stop(); layeredSprite = null; }
-  if (live2dManager) { live2dManager = null; }
 
-  const l2dCanvas = document.getElementById('live2d-canvas');
   const spriteContainer = document.getElementById('character-sprite-container');
-  const auraCanvas = document.getElementById('aura-canvas');
 
-  // Hide all
-  if (l2dCanvas) l2dCanvas.style.display = 'none';
-  if (spriteContainer) { spriteContainer.style.display = 'none'; spriteContainer.innerHTML = ''; }
-  // Hide aura for glass orb (it has its own visuals); show for other modes
-  if (auraCanvas) auraCanvas.style.display = mode === 'glassorb' ? 'none' : 'block';
-
-  switch (mode) {
-    case 'glassorb':
-      if (window.GlassOrbCharacter && spriteContainer) {
-        spriteContainer.style.display = 'block';
-        glassOrbCharacter = new GlassOrbCharacter('character-sprite-container');
-        glassOrbCharacter.start();
-        console.log('[App] Using GlassOrbCharacter (glass orb mode)');
+  if (window.LayeredSpriteEngine && spriteContainer) {
+    spriteContainer.style.display = 'block';
+    layeredSprite = new LayeredSpriteEngine('character-sprite-container');
+    layeredSprite.loadLayers('../../assets/character/wanwan/layers/final').then(() => { if (!layeredSprite) return;
+      layeredSprite.start();
+      // Set mini-orb avatar from sprite idle image
+      const miniAvatar = document.getElementById('mini-orb-avatar');
+      if (miniAvatar) {
+        miniAvatar.style.backgroundImage = 'url(../../assets/character/wanwan/avatar.png)';
+        miniAvatar.style.display = 'block';
+        document.getElementById('mini-orb-canvas').style.display = 'none';
       }
-      break;
-    case 'sprite':
-      if (window.LayeredSpriteEngine && spriteContainer) {
-        spriteContainer.style.display = 'block';
-        layeredSprite = new LayeredSpriteEngine('character-sprite-container');
-        layeredSprite.loadLayers('../../assets/character/wanwan/layers/final').then(() => { if (!layeredSprite) return;
-          layeredSprite.start();
-          // Set mini-orb avatar from sprite idle image
-          const miniAvatar = document.getElementById('mini-orb-avatar');
-          if (miniAvatar) {
-            miniAvatar.style.backgroundImage = 'url(../../assets/character/wanwan/avatar.png)';
-            miniAvatar.style.display = 'block';
-            document.getElementById('mini-orb-canvas').style.display = 'none';
-          }
-        });
-        console.log('[App] Using LayeredSpriteEngine (sprite mode)');
-      } else if (window.CharacterAnimator && spriteContainer) {
-        spriteContainer.style.display = 'block';
-        characterAnimator = new CharacterAnimator('character-sprite-container');
-        characterAnimator.start();
-        console.log('[App] Using CharacterAnimator (sprite mode fallback)');
-      }
-      break;
-    case 'live2d':
-      if (l2dCanvas && window.Live2DManager) {
-        l2dCanvas.style.display = 'block';
-        // Ensure canvas has actual pixel dimensions before PixiJS init
-        const parent = l2dCanvas.parentElement;
-        if (parent) {
-          const rect = parent.getBoundingClientRect();
-          l2dCanvas.width = Math.round(rect.width) || 330;
-          l2dCanvas.height = Math.round(rect.height) || 400;
-        }
-        // Delay init slightly to ensure layout is computed after display:block
-        setTimeout(() => {
-          live2dManager = new Live2DManager(l2dCanvas);
-          live2dManager.init();
-          live2dManager.loadModel('../../assets/models/Hiyori/Hiyori.model3.json');
-          console.log('[App] Using Live2DManager (Live2D mode)');
-        }, 50);
-      }
-      break;
+    });
+    console.log('[App] Using LayeredSpriteEngine (sprite mode)');
+  } else if (window.CharacterAnimator && spriteContainer) {
+    spriteContainer.style.display = 'block';
+    characterAnimator = new CharacterAnimator('character-sprite-container');
+    characterAnimator.start();
+    console.log('[App] Using CharacterAnimator (sprite mode fallback)');
   }
-}
-
-// Cycle through character modes: glassorb → sprite → live2d → glassorb
-const CHARACTER_MODES = ['glassorb', 'sprite', 'live2d'];
-let currentCharModeIndex = 0;
-
-function cycleCharacterMode() {
-  currentCharModeIndex = (currentCharModeIndex + 1) % CHARACTER_MODES.length;
-  const newMode = CHARACTER_MODES[currentCharModeIndex];
-  initCharacterMode(newMode);
-  // Save preference
-  if (window.electronAPI?.settings?.set) {
-    window.electronAPI.settings.get().then(s => {
-      s.characterMode = newMode;
-      window.electronAPI.settings.set(s);
-    }).catch(() => {});
-  }
-  return newMode;
 }
 
 // ===== State Management =====
@@ -275,16 +195,9 @@ function setAppState(newState) {
       break;
   }
 
-  // Sync aura
-  if (auraAnimator) {
-    auraAnimator.setState(newState);
-  }
-
   // Sync character animation
   if (characterAnimator) characterAnimator.setState(newState);
-  if (glassOrbCharacter) glassOrbCharacter.setState(newState);
   if (layeredSprite) layeredSprite.setState(newState);
-  if (live2dManager?.isLoaded) live2dManager.setMotion(newState);
 
   // Sync mini-orb
   if (isMiniMode) {
@@ -383,7 +296,6 @@ async function handleCommand(command) {
     }
 
     // Bounce character on new response
-    if (glassOrbCharacter) glassOrbCharacter.bounce();
     if (layeredSprite) layeredSprite.bounce();
 
     // System notification if window not focused
@@ -657,16 +569,6 @@ function renderHistory() {
   historyMessages.scrollTop = historyMessages.scrollHeight;
 }
 
-// Mode toggle — cycle glassorb / sprite / live2d
-const modeToggleBtn = document.getElementById('mode-toggle-btn');
-if (modeToggleBtn) {
-  modeToggleBtn.addEventListener('click', () => {
-    const newMode = cycleCharacterMode();
-    const labels = { glassorb: '🫧 Glass Orb', sprite: '🎨 Sprite', live2d: '🎭 Live2D' };
-    modeToggleBtn.title = labels[newMode] || newMode;
-  });
-}
-
 if (historyBtn) {
   historyBtn.addEventListener('click', () => {
     if (historyPanel) {
@@ -847,10 +749,6 @@ characterArea.addEventListener('contextmenu', (e) => {
   `;
 
   const items = [
-    { label: window.I18N ? window.I18N.t('mode-glassorb') : '🫧 Glass Orb', action: () => { initCharacterMode('glassorb'); currentCharModeIndex = 0; } },
-    { label: window.I18N ? window.I18N.t('mode-sprite') : '🎨 Sprite', action: () => { initCharacterMode('sprite'); currentCharModeIndex = 1; } },
-    { label: window.I18N ? window.I18N.t('mode-live2d') : '🎭 Live2D', action: () => { initCharacterMode('live2d'); currentCharModeIndex = 2; } },
-    { divider: true },
     { label: '👗 衣橱 Wardrobe', action: () => openWardrobe() },
     { divider: true },
     { label: '🔄 New Chat', action: async () => { await window.electronAPI?.newSession?.(); chatHistory = []; if (historyPanel) renderHistory(); showBubble('New chat started ✨'); } },
@@ -894,17 +792,9 @@ function startVizLoop() {
   function vizFrame() {
     if (audioPlayerQueue) {
       const vol = audioPlayerQueue.getVolume();
-      // Glass orb visualizer
-      if (glassOrbCharacter) {
-        glassOrbCharacter.updateVisualizer(vol);
-      }
       // Sprite lip sync
       if (layeredSprite) {
         layeredSprite.updateVisualizer(vol);
-      }
-      // Live2D lip sync
-      if (live2dManager?.isLoaded) {
-        live2dManager.setLipSync(vol);
       }
     }
     requestAnimationFrame(vizFrame);
@@ -924,18 +814,9 @@ async function checkConnectionStatus() {
     const isConnected = status.connected;
     if (!wasConnected && isConnected) {
       // Just connected — revival animation
-      if (glassOrbCharacter) {
-        glassOrbCharacter.setState('idle');
-        glassOrbCharacter._spawnParticles();
-        glassOrbCharacter._spawnParticles();
-      }
       if (layeredSprite) layeredSprite.bounce();
       console.log('[App] Gateway connected');
     } else if (wasConnected && !isConnected) {
-      // Disconnected — show offline state
-      if (glassOrbCharacter) {
-        glassOrbCharacter._setMood('offline');
-      }
       console.log('[App] Gateway disconnected');
     }
     wasConnected = isConnected;
