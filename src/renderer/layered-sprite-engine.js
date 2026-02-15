@@ -118,9 +118,9 @@ class LayeredSpriteEngine {
 
     // Two image elements for crossfade
     const spriteCSS = `
-      display: block; height: 100%; width: auto; max-width: 100%;
-      object-fit: contain; position: absolute; bottom: 0; left: 50%;
-      transform: translateX(-50%);
+      display: block; width: 100%; height: 100%;
+      object-fit: cover; object-position: center bottom;
+      position: absolute; bottom: 0; left: 0;
       filter: drop-shadow(0 6px 24px rgba(0,0,0,0.18));
       transition: opacity 0.12s ease;
     `;
