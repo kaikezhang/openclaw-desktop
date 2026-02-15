@@ -124,6 +124,13 @@ function initCharacterMode(mode) {
         layeredSprite = new LayeredSpriteEngine('character-sprite-container');
         layeredSprite.loadLayers('../../assets/character/wanwan/layers/final').then(() => { if (!layeredSprite) return;
           layeredSprite.start();
+          // Set mini-orb avatar from sprite idle image
+          const miniAvatar = document.getElementById('mini-orb-avatar');
+          if (miniAvatar) {
+            miniAvatar.src = '../../assets/character/wanwan/layers/final/char-idle.png';
+            miniAvatar.style.display = 'block';
+            document.getElementById('mini-orb-canvas').style.display = 'none';
+          }
         });
         console.log('[App] Using LayeredSpriteEngine (sprite mode)');
       } else if (window.CharacterAnimator && spriteContainer) {

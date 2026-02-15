@@ -66,6 +66,16 @@ body {
 
 .mini-orb:active { transform: scale(0.95); }
 
+.mini-orb-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  object-position: center 15%;
+  position: absolute;
+  z-index: 1;
+}
+
 .mini-orb-canvas {
   width: 52px;
   height: 52px;
