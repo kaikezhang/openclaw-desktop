@@ -371,50 +371,18 @@ async function handleCommand(command) {
   if (bubbleScrollTimer) { clearInterval(bubbleScrollTimer); bubbleScrollTimer = null; }
 
   try {
-    // Check if user is requesting outfit change BEFORE sending to AI
-    let outfitGenerating = false;
-    const outfitRequest = detectOutfitRequest(command);
-    if (outfitRequest) {
-      console.log('[App] Outfit request detected:', outfitRequest);
-
-      // Instant voice feedback before generation starts
-      const loadingMsg = `好的～晚晚这就去换${outfitRequest}，稍等一下哦～`;
-      setAppState('speaking');
-      showBubble(escapeHtml(loadingMsg));
-      await playTTSForReply(loadingMsg);
-
-      const res = await window.electronAPI?.requestOutfit?.(outfitRequest);
-      console.log('[App] Outfit request result:', res);
-      if (res?.cached) {
-        outfitGenerating = false;
-      }
-      if (res && !res.cached) {
-        outfitGenerating = true;
-        window._outfitTTSHold = true;
-        window._outfitTTSHoldQueue = [];
-      }
-    }
-
     const result = await window.electronAPI.chat(command);
     let reply = cleanMarkdown(result.message || '');
     lastAIResponse = reply;
 
-    // Check AI reply for __OUTFIT:name__ trigger
-    const outfitMatch = reply.match(/__OUTFIT:([a-zA-Z0-9_-]+)__/);
+    // AI-driven outfit change: look for __OUTFIT:描述__ tag in reply
+    const outfitMatch = reply.match(/__OUTFIT:(.+?)__/);
     if (outfitMatch) {
-      const outfitName = outfitMatch[1];
-      reply = reply.replace(/__OUTFIT:[a-zA-Z0-9_-]+__/g, '').trim();
+      const outfitDesc = outfitMatch[1].trim();
+      reply = reply.replace(/__OUTFIT:.+?__/g, '').trim();
       lastAIResponse = reply;
-      window.electronAPI?.loadOutfit?.(outfitName);
-    }
-
-    // Also detect outfit intent in AI reply (e.g. "给你换个丝绸吊带睡裙")
-    if (!outfitMatch && !outfitRequest) {
-      const aiOutfit = detectOutfitInReply(reply);
-      if (aiOutfit) {
-        console.log('[App] AI suggested outfit change:', aiOutfit);
-        window.electronAPI?.requestOutfit?.(aiOutfit);
-      }
+      console.log('[App] AI requested outfit change:', outfitDesc);
+      window.electronAPI?.requestOutfit?.(outfitDesc);
     }
 
     // Bounce character on new response
@@ -651,47 +619,8 @@ async function playTTSForReply(reply) {
   setAppState('idle');
 }
 
-function detectOutfitRequest(text) {
-  // Detect outfit change intent — returns the outfit description or null
-  // Skip if text is clearly not about changing outfit
-  if (/穿着/.test(text) && !/换/.test(text)) return null;
-  if (/自拍|拍照|照片|photo|selfie|发[到给]/.test(text)) return null;
-
-  const patterns = [
-    /(?:想|要|我要|给我)穿[个一件套身]?(.{1,20}?)(?:吧|呗|看看|的样子|$)/,
-    /换[上成]?[个一件套身]?(.{1,20}?)(?:吧|呗|看看|$)/,
-    /(?:想看你|给我)穿[个一件套]?(.{1,20})/,
-    /wear\s+(?:a\s+)?(.{1,30})/i,
-    /change.*?(?:to|into)\s+(?:a\s+)?(.{1,30})/i,
-  ];
-  for (const p of patterns) {
-    const m = text.match(p);
-    if (m) {
-      const desc = m[1].replace(/^[的地得]/, '').trim();
-      if (desc.length > 0 && desc.length < 30) return desc;
-    }
-  }
-  return null;
-}
-
-function detectOutfitInReply(text) {
-  // Detect when AI explicitly says it will change to a specific outfit
-  // Must have clear verb + clothing noun, avoid false positives from casual "换装" mentions
-  const patterns = [
-    /(?:给你|帮你)换[上个一件](.{2,15}?)(?:[吧呗啦了！!？?～~]|$)/,
-    /(?:这就|马上)穿[上个一件](.{2,15}?)(?:[吧呗啦！!～~]|$)/,
-    /穿[上个一件](.{2,15}?)给你看/,
-  ];
-  for (const p of patterns) {
-    const m = text.match(p);
-    if (m) {
-      const desc = m[1].replace(/^[的地得]/, '').trim();
-      // Sanity check: must look like clothing, not random text
-      if (desc.length >= 2 && desc.length < 20 && !/[，。！？,.!?]/.test(desc)) return desc;
-    }
-  }
-  return null;
-}
+// Outfit detection is now fully AI-driven via __OUTFIT:描述__ tags in replies.
+// No client-side regex needed.
 
 // ===== Utilities =====
 function escapeHtml(text) {
