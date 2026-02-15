@@ -80,14 +80,50 @@ def get_ref_bbox():
 def normalize_sprite(img, ref_bbox, ref_img):
     """
     Normalize a generated sprite:
-    - Resize to standard SPRITE_SIZE
-    - Remove white background
-    Simple approach: Gemini edit preserves composition, just resize + clean alpha.
+    1. Remove white background
+    2. Detect character bounding box
+    3. Scale + position to match reference bbox (center-align, bottom-align)
+    4. Resize to SPRITE_SIZE
     """
     from PIL import Image
+    import numpy as np
 
-    img = img.convert("RGBA").resize(SPRITE_SIZE, Image.LANCZOS)
-    return remove_white_bg(img)
+    img = img.convert("RGBA")
+
+    # First resize to sprite size
+    img = img.resize(SPRITE_SIZE, Image.LANCZOS)
+
+    # Remove background
+    img = remove_white_bg(img)
+
+    # Get generated character bbox
+    gen_bbox = get_bbox(img)
+    gen_w = gen_bbox[2] - gen_bbox[0]
+    gen_h = gen_bbox[3] - gen_bbox[1]
+    ref_w = ref_bbox[2] - ref_bbox[0]
+    ref_h = ref_bbox[3] - ref_bbox[1]
+
+    if gen_w < 10 or gen_h < 10 or ref_w < 10 or ref_h < 10:
+        return img
+
+    # Calculate scale to match reference height (bottom-aligned)
+    scale = ref_h / gen_h
+    # Don't scale up too much or down too much
+    scale = max(0.6, min(1.5, scale))
+
+    if abs(scale - 1.0) > 0.05:
+        new_w = int(img.width * scale)
+        new_h = int(img.height * scale)
+        img_scaled = img.resize((new_w, new_h), Image.LANCZOS)
+
+        # Create new canvas and paste bottom-center aligned
+        result = Image.new("RGBA", SPRITE_SIZE, (0, 0, 0, 0))
+        paste_x = (SPRITE_SIZE[0] - new_w) // 2
+        paste_y = SPRITE_SIZE[1] - new_h  # bottom align
+        result.paste(img_scaled, (paste_x, paste_y), img_scaled)
+        return result
+
+    return img
 
 
 def remove_white_bg(img, threshold=245):
