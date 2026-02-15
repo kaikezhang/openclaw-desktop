@@ -273,7 +273,7 @@ export function registerIpcHandlers(deps: {
       const REMOTE_HOST = process.env.OPENCLAW_SSH_HOST || 'kaike@5.78.150.16';
       const REMOTE_PROJECT = '~/.openclaw/workspace/openclaw-desktop';
       const safeDesc = description.replace(/'/g, "'\\''"); // escape single quotes
-      const remoteCmd = `export PATH="$HOME/.local/bin:$HOME/.cargo/bin:/usr/local/bin:$PATH" && source ~/.bashrc 2>/dev/null; cd ${REMOTE_PROJECT} && PYTHONUNBUFFERED=1 uv run scripts/generate-outfit.py --outfit '${safeDesc}' --name '${genName}'`;
+      const remoteCmd = `export PATH="$HOME/.local/bin:$HOME/.cargo/bin:/usr/local/bin:$PATH" && source ~/.openclaw/.env.outfit 2>/dev/null; cd ${REMOTE_PROJECT} && PYTHONUNBUFFERED=1 uv run scripts/generate-outfit.py --outfit '${safeDesc}' --name '${genName}'`;
 
       console.log(`[Outfit] Generating: "${description}" as "${genName}"...`);
 
