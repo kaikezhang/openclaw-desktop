@@ -342,6 +342,22 @@ export function registerIpcHandlers(deps: {
     }
   });
 
+  // ===== Outfit Changed Notification (tell gateway to generate selfies) =====
+  ipcMain.handle('outfit:notifyChanged', async (_event, description: string) => {
+    try {
+      const msg = `[OUTFIT_CHANGED] 晚晚刚换了新衣服：${description}。请生成2-3张不同场景的selfie发到Discord #desk-app频道，每张用不同的场景和构图。`;
+      await openclawClient.chat(msg, {
+        onText: () => {},
+        onDone: () => { console.log('[IPC] Outfit notification sent to gateway'); },
+        onError: (err) => { console.error('[IPC] Outfit notification error:', err.message); },
+      });
+      return { success: true };
+    } catch (e: any) {
+      console.error('[IPC] Outfit notify error:', e);
+      return { success: false, error: e.message };
+    }
+  });
+
   // ===== Outfit List (wardrobe) =====
   ipcMain.handle('outfit:list', async () => {
     try {

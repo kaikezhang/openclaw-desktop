@@ -71,6 +71,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.on('outfit:change', (_e, data) => cb(data)),
   loadOutfit: (name: string) => ipcRenderer.invoke('outfit:load', name),
   requestOutfit: (description: string) => ipcRenderer.invoke('outfit:request', description),
+  notifyOutfitChanged: (description: string) => ipcRenderer.invoke('outfit:notifyChanged', description),
   listOutfits: () => ipcRenderer.invoke('outfit:list'),
   getOutfitThumbnail: (name: string) => ipcRenderer.invoke('outfit:thumbnail', name),
 

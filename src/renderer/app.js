@@ -95,29 +95,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     } else if (data.status === 'ready' && data.sprites && layeredSprite) {
       layeredSprite.swapOutfit(data.sprites);
 
-      // Auto-generate selfie in background (non-blocking)
+      // Notify gateway about outfit change (for Discord selfie)
       if (data.outfit && data.outfit !== '__default__') {
-        (async () => {
-          try {
-            const desc = data.description || data.outfit.replace(/outfit-\d+/, '').replace(/-/g, ' ').trim();
-            console.log('[App] Generating outfit selfie for:', desc);
-            const res = await window.electronAPI?.generateSelfie?.({ prompt: desc, outfitDescription: desc });
-            if (res?.success && res.path) {
-              console.log('[App] Selfie generated:', res.path);
-              // Show selfie in bubble as image
-              const bubbleEl = document.getElementById('bubble-text');
-              if (bubbleEl) {
-                const img = document.createElement('img');
-                img.src = 'file://' + res.path;
-                img.style.cssText = 'max-width:100%;border-radius:8px;margin-top:4px;';
-                img.alt = desc;
-                bubbleEl.appendChild(img);
-              }
-            }
-          } catch (e) {
-            console.warn('[App] Selfie generation failed:', e);
-          }
-        })();
+        const desc = data.description || data.outfit;
+        window.electronAPI?.notifyOutfitChanged?.(desc).catch(() => {});
       }
 
       // Release held streaming TTS audio
