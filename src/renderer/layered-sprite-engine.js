@@ -330,6 +330,23 @@ class LayeredSpriteEngine {
   }
 
   /**
+   * Reset to default sprites (from original basePath).
+   */
+  resetToDefault() {
+    if (!this._basePath) return;
+    this._spawnOutfitParticles();
+    this.springs.squashX.pos = 0.92;
+    this.springs.squashY.pos = 1.08;
+    this.springs.bounceY.vel = -150;
+    for (const [key, file] of Object.entries(this._assets)) {
+      if (this._sprites[key]) {
+        this._sprites[key].src = `${this._basePath}/${file}`;
+      }
+    }
+    console.log('[LayeredSpriteEngine] Reset to default outfit');
+  }
+
+  /**
    * Spawn a burst of particles for outfit change effect.
    */
   _spawnOutfitParticles() {

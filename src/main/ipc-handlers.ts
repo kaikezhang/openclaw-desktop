@@ -340,6 +340,28 @@ export function registerIpcHandlers(deps: {
     }
   });
 
+  // ===== Outfit List (wardrobe) =====
+  ipcMain.handle('outfit:list', async () => {
+    try {
+      const { listOutfits } = await import('./wardrobe');
+      return { success: true, outfits: listOutfits() };
+    } catch (e: any) {
+      return { success: false, error: e.message, outfits: [] };
+    }
+  });
+
+  // ===== Outfit Thumbnail =====
+  ipcMain.handle('outfit:thumbnail', async (_event, name: string) => {
+    try {
+      const { getOutfit } = await import('./wardrobe');
+      const sprites = getOutfit(name);
+      if (!sprites) return { success: false };
+      return { success: true, idle: sprites.idle };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  });
+
   // ===== Outfit Loading (from wardrobe) =====
   ipcMain.handle('outfit:load', async (_event, name: string) => {
     try {

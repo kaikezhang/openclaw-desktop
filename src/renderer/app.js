@@ -701,6 +701,10 @@ if (closeHistoryBtn) {
 document.addEventListener('keydown', (e) => {
   // Escape: cancel current action / close panels
   if (e.key === 'Escape') {
+    if (wardrobePanel && wardrobePanel.style.display !== 'none') {
+      wardrobePanel.style.display = 'none';
+      return;
+    }
     if (historyPanel && historyPanel.style.display !== 'none') {
       historyPanel.style.display = 'none';
       return;
@@ -737,6 +741,101 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
+// ===== Wardrobe =====
+const wardrobePanel = document.getElementById('wardrobe-panel');
+const wardrobeGrid = document.getElementById('wardrobe-grid');
+const closeWardrobeBtn = document.getElementById('close-wardrobe-btn');
+
+let wardrobeCurrentOutfit = '__default__';
+
+async function openWardrobe() {
+  if (!wardrobePanel) return;
+  wardrobePanel.style.display = 'flex';
+  wardrobeGrid.innerHTML = '<div class="wardrobe-empty">加载中…</div>';
+
+  try {
+    const res = await window.electronAPI?.listOutfits?.();
+    if (!res?.success || !res.outfits?.length) {
+      wardrobeGrid.innerHTML = '<div class="wardrobe-empty">衣橱空空的～<br>跟晚晚说"换装"试试！</div>';
+      return;
+    }
+
+    // Add default outfit first
+    const allOutfits = [
+      { name: '__default__', description: '默认校服', timestamp: '2026-01-01T00:00:00Z' },
+      ...res.outfits,
+    ];
+
+    wardrobeGrid.innerHTML = '';
+
+    for (const outfit of allOutfits) {
+      const item = document.createElement('div');
+      item.className = 'wardrobe-item' + (wardrobeCurrentOutfit === outfit.name ? ' active' : '');
+
+      if (outfit.name === '__default__') {
+        // Default outfit uses the base sprite
+        item.innerHTML = `
+          <img src="../assets/character/wanwan/layers/final/char-idle.png" alt="默认">
+          ${wardrobeCurrentOutfit === outfit.name ? '<div class="outfit-check">✓</div>' : ''}
+          <div class="outfit-label">${outfit.description}</div>
+        `;
+      } else {
+        // Load thumbnail
+        item.innerHTML = `
+          <div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:#555;font-size:10px;">加载中</div>
+          ${wardrobeCurrentOutfit === outfit.name ? '<div class="outfit-check">✓</div>' : ''}
+          <div class="outfit-label">${outfit.description}</div>
+        `;
+        // Async load thumbnail
+        window.electronAPI?.getOutfitThumbnail?.(outfit.name).then(thumbRes => {
+          if (thumbRes?.success && thumbRes.idle) {
+            const img = document.createElement('img');
+            img.src = 'data:image/png;base64,' + thumbRes.idle;
+            img.alt = outfit.description;
+            // Replace the loading placeholder
+            const placeholder = item.querySelector('div[style]');
+            if (placeholder) item.replaceChild(img, placeholder);
+            else item.insertBefore(img, item.firstChild);
+          }
+        });
+      }
+
+      item.addEventListener('click', async () => {
+        if (outfit.name === '__default__') {
+          // Reset to default sprites
+          wardrobeCurrentOutfit = '__default__';
+          if (window.layeredSpriteEngine) {
+            window.layeredSpriteEngine.resetToDefault?.();
+          }
+        } else {
+          wardrobeCurrentOutfit = outfit.name;
+          await window.electronAPI?.loadOutfit?.(outfit.name);
+        }
+        // Re-render to update active state
+        openWardrobe();
+      });
+
+      wardrobeGrid.appendChild(item);
+    }
+  } catch (e) {
+    wardrobeGrid.innerHTML = '<div class="wardrobe-empty">加载失败 😿</div>';
+    console.error('[Wardrobe] Error:', e);
+  }
+}
+
+if (closeWardrobeBtn) {
+  closeWardrobeBtn.addEventListener('click', () => {
+    if (wardrobePanel) wardrobePanel.style.display = 'none';
+  });
+}
+
+// Track current outfit from outfit:change events
+window.electronAPI?.onOutfitChange?.((data) => {
+  if (data.status === 'ready' && data.outfit) {
+    wardrobeCurrentOutfit = data.outfit;
+  }
+});
+
 // ===== Context Menu =====
 characterArea.addEventListener('contextmenu', (e) => {
   e.preventDefault();
@@ -753,6 +852,8 @@ characterArea.addEventListener('contextmenu', (e) => {
     { label: window.I18N ? window.I18N.t('mode-glassorb') : '🫧 Glass Orb', action: () => { initCharacterMode('glassorb'); currentCharModeIndex = 0; } },
     { label: window.I18N ? window.I18N.t('mode-sprite') : '🎨 Sprite', action: () => { initCharacterMode('sprite'); currentCharModeIndex = 1; } },
     { label: window.I18N ? window.I18N.t('mode-live2d') : '🎭 Live2D', action: () => { initCharacterMode('live2d'); currentCharModeIndex = 2; } },
+    { divider: true },
+    { label: '👗 衣橱 Wardrobe', action: () => openWardrobe() },
     { divider: true },
     { label: '🔄 New Chat', action: async () => { await window.electronAPI?.newSession?.(); chatHistory = []; if (historyPanel) renderHistory(); showBubble('New chat started ✨'); } },
     { label: window.I18N ? window.I18N.t('chat-history') : 'Chat History', action: () => { if (historyPanel) { historyPanel.style.display = 'flex'; renderHistory(); } } },
