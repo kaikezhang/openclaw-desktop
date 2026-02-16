@@ -40,6 +40,7 @@ function extractMessageText(message: any): string {
 
 let externalChatAccumulated = '';
 let externalChatSessionStarted = false;
+let externalTTSLocked = false;  // Lock to prevent new events from interrupting TTS playback
 
 const openclawClient = new OpenClawClient({
   port: parseInt(process.env.OPENCLAW_PORT || '18789', 10),
@@ -48,6 +49,7 @@ const openclawClient = new OpenClawClient({
     // Handle external chat events (e.g. from sessions_send) → feed to TTS
     if (msg.event !== 'chat') return;
     if ((globalThis as any).__openclawLocalChatActive) return; // Local chat already handles TTS via its own stream
+    if (externalTTSLocked) return; // TTS playing from previous external chat, ignore all new events
 
     const payload = msg.payload || {};
     const state = payload.state;
@@ -83,8 +85,18 @@ const openclawClient = new OpenClawClient({
       }
       ttsEngine.splitter.finish();
       externalChatAccumulated = '';
-      externalChatSessionStarted = false;
-      console.log('[ExternalChat] final, TTS flushed');
+      console.log('[ExternalChat] final, TTS flushed — locking until playback done');
+
+      // Lock: ignore all new external chat events until TTS finishes playing
+      externalTTSLocked = true;
+      const checkDone = setInterval(() => {
+        if (!ttsEngine.isBusy) {
+          externalTTSLocked = false;
+          externalChatSessionStarted = false;
+          console.log('[ExternalChat] TTS done, unlocked');
+          clearInterval(checkDone);
+        }
+      }, 500);
 
       // Also show in bubble
       if (text && mainWindow) {
