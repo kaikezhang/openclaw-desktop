@@ -254,14 +254,14 @@ function initExternalChatListeners() {
     // Add to history
     if (typeof addToHistory === 'function') addToHistory('assistant', reply);
 
-    // Show bubble — TTS is already being handled by main process via onEvent→splitter
-    showBubble(escapeHtml(reply));
-
-    // If TTS didn't start (very short text), show bubble and go idle after delay
+    // Don't showBubble here — let onPlayStart handle per-sentence display
+    // Only show bubble if TTS won't play (fallback)
     if (!streamingTTSStarted && !audioPlayerQueue?.playing && audioPlayerQueue?.queue?.length === 0) {
       // TTS chunks may still arrive, wait a moment
       setTimeout(() => {
         if (!audioPlayerQueue?.playing && audioPlayerQueue?.queue?.length === 0) {
+          // No TTS at all — show full text as fallback
+          showBubble(escapeHtml(reply));
           isProcessing = false;
           setAppState('idle');
         }
