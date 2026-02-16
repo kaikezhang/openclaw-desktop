@@ -293,32 +293,35 @@ export function registerIpcHandlers(deps: {
 
       proc.on('close', async (code: number) => {
         if (code === 0) {
-          // Sprites are on the server — fetch them via SSH + base64
+          // Sprites are on the server — fetch them via HTTP
           console.log(`[Outfit] Generation done, fetching sprites from server...`);
           try {
-            const { execSync } = require('child_process');
-            const remoteDir = `${REMOTE_PROJECT}/assets/character/wanwan/outfits/${genName}`;
-            const fetchSprite = (file: string): string => {
-              return execSync(
-                `ssh -o StrictHostKeyChecking=no ${REMOTE_HOST} "base64 ${remoteDir}/${file}"`,
-                { encoding: 'utf-8', maxBuffer: 10 * 1024 * 1024 }
-              ).replace(/\s/g, '');
+            const OUTFIT_SERVER = process.env.OPENCLAW_OUTFIT_SERVER || `http://${(process.env.OPENCLAW_SSH_HOST || 'kaike@5.78.150.16').split('@').pop()}:3456`;
+            const baseUrl = `${OUTFIT_SERVER}/${genName}`;
+
+            const fetchSprite = async (file: string): Promise<string> => {
+              const resp = await fetch(`${baseUrl}/${file}`);
+              if (!resp.ok) throw new Error(`HTTP ${resp.status} for ${file}`);
+              const buf = Buffer.from(await resp.arrayBuffer());
+              return buf.toString('base64');
             };
-            const sprites: Record<string, string> = {
-              idle: fetchSprite('char-idle.png'),
-              blink: fetchSprite('char-blink.png'),
-              speaking: fetchSprite('char-speaking.png'),
+            const tryFetch = async (file: string): Promise<string | null> => {
+              try { return await fetchSprite(file); } catch { return null; }
             };
-            // Try to fetch optional speaking frames
-            const tryFetch = (file: string): string | null => {
-              try { return fetchSprite(file); } catch { return null; }
-            };
-            const s1 = tryFetch('char-speaking-1.png');
-            const s2 = tryFetch('char-speaking-2.png');
+
+            const [idle, blink, speaking, s1, s2] = await Promise.all([
+              fetchSprite('char-idle.png'),
+              fetchSprite('char-blink.png'),
+              fetchSprite('char-speaking.png'),
+              tryFetch('char-speaking-1.png'),
+              tryFetch('char-speaking-2.png'),
+            ]);
+
+            const sprites: Record<string, string> = { idle, blink, speaking };
             if (s1) sprites['speaking-1'] = s1;
             if (s2) sprites['speaking-2'] = s2;
 
-            // Also save locally for caching
+            // Save locally for caching
             const path = require('path');
             const fs = require('fs');
             const { app } = require('electron');
@@ -334,11 +337,8 @@ export function registerIpcHandlers(deps: {
             }
             // Copy metadata
             try {
-              const metaJson = execSync(
-                `ssh -o StrictHostKeyChecking=no ${REMOTE_HOST} "cat ${remoteDir}/metadata.json"`,
-                { encoding: 'utf-8' }
-              );
-              fs.writeFileSync(path.join(localDir, 'metadata.json'), metaJson);
+              const metaResp = await fetch(`${baseUrl}/metadata.json`);
+              if (metaResp.ok) fs.writeFileSync(path.join(localDir, 'metadata.json'), await metaResp.text());
             } catch {}
 
             setCurrentOutfit(genName);
