@@ -544,7 +544,7 @@ class LayeredSpriteEngine {
     setTimeout(() => ring.remove(), 800);
   }
 
-  /** Start speaking mouth animation — cycle through speaking frames synced to audio */
+  /** Start speaking mouth animation — prepare frames for volume-driven lip sync */
   _startSpeakAnimation() {
     this._stopSpeakAnimation();
     const frames = ['speaking', 'speaking-1', 'speaking-2'].filter(k => {
@@ -552,19 +552,14 @@ class LayeredSpriteEngine {
       return el && el.style.display !== 'none' && el.naturalWidth > 0;
     });
     if (frames.length <= 1) {
-      // Only one speaking frame, use it directly
       this._setExpression('speaking');
+      this._speakFrames = frames.length ? frames : ['speaking'];
       return;
     }
     this._speakFrameIndex = 0;
     this._speakFrames = frames;
     this._setExpression(frames[0]);
-    // Cycle frames at ~150ms interval, driven by volume in updateVisualizer
-    this._speakFrameTimer = setInterval(() => {
-      if (this.state !== 'speaking') return;
-      this._speakFrameIndex = (this._speakFrameIndex + 1) % this._speakFrames.length;
-      this._setExpression(this._speakFrames[this._speakFrameIndex]);
-    }, 180);
+    // No setInterval — frame switching is fully driven by updateVisualizer (volume)
   }
 
   _stopSpeakAnimation() {
@@ -576,20 +571,30 @@ class LayeredSpriteEngine {
 
   /** Update with audio volume (0-1) for lip sync reactivity */
   updateVisualizer(volume) {
-    if (this.state === 'speaking' && volume > 0.05) {
-      this.springs.speakBounce.target = -volume * 8;
-      // Micro-squash on loud syllables
-      if (volume > 0.3) {
-        this.springs.squashX.pos = 1 + volume * 0.03;
-        this.springs.squashY.pos = 1 - volume * 0.02;
-      }
-      // Volume-driven frame selection for more natural lip sync
-      if (this._speakFrames && this._speakFrames.length > 1) {
-        const frameIdx = volume > 0.4 ? this._speakFrames.length - 1 :
-                         volume > 0.15 ? 1 : 0;
-        if (frameIdx !== this._speakFrameIndex) {
-          this._speakFrameIndex = frameIdx;
-          this._setExpression(this._speakFrames[frameIdx]);
+    if (this.state === 'speaking') {
+      if (volume > 0.05) {
+        this.springs.speakBounce.target = -volume * 8;
+        // Micro-squash on loud syllables
+        if (volume > 0.3) {
+          this.springs.squashX.pos = 1 + volume * 0.03;
+          this.springs.squashY.pos = 1 - volume * 0.02;
+        }
+        // Volume-driven frame selection for natural lip sync
+        if (this._speakFrames && this._speakFrames.length > 1) {
+          // frame 0 = closed/rest, frame 1 = slightly open, frame 2 = wide open
+          const frameIdx = volume > 0.4 ? this._speakFrames.length - 1 :
+                           volume > 0.15 ? 1 : 0;
+          if (frameIdx !== this._speakFrameIndex) {
+            this._speakFrameIndex = frameIdx;
+            this._setExpression(this._speakFrames[frameIdx]);
+          }
+        }
+      } else {
+        // Quiet moment — close mouth (frame 0)
+        this.springs.speakBounce.target = 0;
+        if (this._speakFrames && this._speakFrames.length > 1 && this._speakFrameIndex !== 0) {
+          this._speakFrameIndex = 0;
+          this._setExpression(this._speakFrames[0]);
         }
       }
     } else {
