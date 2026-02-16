@@ -342,10 +342,21 @@ class LayeredSpriteEngine {
 
     await new Promise(r => setTimeout(r, 150));
 
-    // 4. Swap all sprite sources atomically
+    // 4. Swap all sprite sources atomically + fix optional frame visibility
     for (const [key, img] of Object.entries(newImages)) {
       if (this._sprites[key]) {
         this._sprites[key].src = img.src;
+        // Unhide optional speaking frames that may have been hidden by onerror
+        if (this._sprites[key].style.display === 'none') {
+          this._sprites[key].style.display = 'block';
+        }
+      }
+    }
+    // Hide optional speaking frames that are NOT in the new outfit
+    const optionalKeys = ['speaking-1', 'speaking-2'];
+    for (const key of optionalKeys) {
+      if (this._sprites[key] && !newImages[key]) {
+        this._sprites[key].style.display = 'none';
       }
     }
 
