@@ -392,10 +392,10 @@ export class OpenClawClient {
       return;
     }
 
-    // Track event sequence
+    // Track event sequence - only warn for significant gaps (>5 events)
     if (msg.type === 'event' && typeof msg.seq === 'number') {
-      if (this.lastSeq !== null && msg.seq > this.lastSeq + 1) {
-        console.warn(`[OpenClaw] Event gap: expected seq ${this.lastSeq + 1}, got ${msg.seq}`);
+      if (this.lastSeq !== null && msg.seq > this.lastSeq + 5) {
+        console.warn(`[OpenClaw] Event gap: expected seq ${this.lastSeq + 1}, got ${msg.seq} (skipped ${msg.seq - this.lastSeq - 1})`);
       }
       this.lastSeq = msg.seq;
     }

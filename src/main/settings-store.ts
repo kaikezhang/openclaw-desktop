@@ -13,6 +13,7 @@ export interface AppSettings {
   hotkeyToggleMini: string;
   startMinimized: boolean;
   alwaysOnTop: boolean;
+  currentOutfit: string; // Persist selected outfit across restarts
 }
 
 const defaults: AppSettings = {
@@ -26,6 +27,7 @@ const defaults: AppSettings = {
   hotkeyToggleMini: 'CommandOrControl+Shift+M',
   startMinimized: false,
   alwaysOnTop: true,
+  currentOutfit: '__default__',
 };
 
 function getSettingsPath(): string {

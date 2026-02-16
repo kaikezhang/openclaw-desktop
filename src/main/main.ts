@@ -139,7 +139,10 @@ const openclawClient = new OpenClawClient({
         sprites = getOutfit(event.outfit) || undefined;
       }
       if (sprites) {
-        setCurrentOutfit(event.outfit);
+        // Only update if it's NOT the default outfit (don't overwrite saved custom outfit)
+        if (event.outfit !== '__default__') {
+          setCurrentOutfit(event.outfit);
+        }
       }
       mainWindow?.webContents.send('outfit:change', {
         status: 'ready',
@@ -341,6 +344,20 @@ app.whenReady().then(() => {
   createWindow();
   createTray();
   registerGlobalShortcuts();
+
+  // Load saved outfit on startup
+  const { loadSavedOutfit, getOutfit, setCurrentOutfit } = require('./wardrobe');
+  const savedOutfit = loadSavedOutfit();
+  const sprites = getOutfit(savedOutfit);
+  if (sprites) {
+    setCurrentOutfit(savedOutfit);
+    mainWindow?.webContents.send('outfit:change', {
+      status: 'ready',
+      outfit: savedOutfit,
+      sprites,
+    });
+    console.log(`[App] Loaded saved outfit on startup: ${savedOutfit}`);
+  }
 
   // Register IPC handlers
   registerIpcHandlers({

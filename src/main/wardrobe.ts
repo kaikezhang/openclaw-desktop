@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { app } from 'electron';
+import { getSetting, setSetting } from './settings-store';
 
 export interface OutfitMetadata {
   name: string;
@@ -117,11 +118,37 @@ export function getCurrentOutfit(): string {
 }
 
 /**
- * Set the active outfit.
+ * Set the active outfit and persist to settings.
  */
 export function setCurrentOutfit(name: string): void {
   currentOutfit = name;
+  // Persist to settings so it survives restart
+  try {
+    setSetting('currentOutfit', name);
+  } catch (e) {
+    console.warn('[Wardrobe] Failed to save outfit to settings:', e);
+  }
   console.log(`[Wardrobe] Active outfit: ${name}`);
+}
+
+/**
+ * Load the saved outfit from settings on startup.
+ */
+export function loadSavedOutfit(): string {
+  try {
+    const saved = getSetting('currentOutfit');
+    if (saved && saved !== '__default__') {
+      // Verify the outfit still exists
+      const outfitDir = path.join(OUTFITS_DIR, saved);
+      if (fs.existsSync(outfitDir)) {
+        console.log(`[Wardrobe] Loaded saved outfit: ${saved}`);
+        return saved;
+      }
+    }
+  } catch (e) {
+    console.warn('[Wardrobe] Failed to load saved outfit:', e);
+  }
+  return DEFAULT_OUTFIT;
 }
 
 /**
