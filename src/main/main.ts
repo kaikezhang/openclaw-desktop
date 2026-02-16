@@ -39,6 +39,7 @@ function extractMessageText(message: any): string {
 }
 
 let externalChatAccumulated = '';
+let externalChatSessionStarted = false;
 
 const openclawClient = new OpenClawClient({
   port: parseInt(process.env.OPENCLAW_PORT || '18789', 10),
@@ -51,34 +52,38 @@ const openclawClient = new OpenClawClient({
     const payload = msg.payload || {};
     const state = payload.state;
 
+    // Auto-start TTS session on first delta if not already started
+    if ((state === 'delta' || state === 'started') && !externalChatSessionStarted) {
+      externalChatSessionStarted = true;
+      externalChatAccumulated = '';
+      ttsEngine.startSession();
+      console.log('[ExternalChat] TTS session started');
+      if (mainWindow) {
+        mainWindow.webContents.send('external:chatStarted');
+      }
+    }
+
     if (state === 'delta') {
       const text = extractMessageText(payload.message);
-      if (text) {
-        ttsEngine.splitter.addText(
-          text.length > (externalChatAccumulated?.length || 0)
-            ? text.slice(externalChatAccumulated?.length || 0)
-            : ''
-        );
+      if (text && text.length > (externalChatAccumulated?.length || 0)) {
+        const delta = text.slice(externalChatAccumulated.length);
+        console.log(`[ExternalChat] delta +${delta.length} chars`);
+        ttsEngine.splitter.addText(delta);
         externalChatAccumulated = text;
       }
     } else if (state === 'final') {
       const text = extractMessageText(payload.message);
       if (text && text.length > (externalChatAccumulated?.length || 0)) {
-        ttsEngine.splitter.addText(text.slice(externalChatAccumulated?.length || 0));
+        ttsEngine.splitter.addText(text.slice(externalChatAccumulated.length));
       }
       ttsEngine.splitter.finish();
       externalChatAccumulated = '';
+      externalChatSessionStarted = false;
+      console.log('[ExternalChat] final, TTS flushed');
 
       // Also show in bubble
       if (text && mainWindow) {
         mainWindow.webContents.send('external:chat', { text });
-      }
-    } else if (state === 'started') {
-      // New external run starting — reset TTS
-      ttsEngine.startSession();
-      externalChatAccumulated = '';
-      if (mainWindow) {
-        mainWindow.webContents.send('external:chatStarted');
       }
     }
   },
