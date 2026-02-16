@@ -54,6 +54,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (appState === 'speaking') {
         isProcessing = false;
         setAppState('idle');
+        // Auto-hide bubble after TTS finishes (showBubble skips timer during speaking)
+        hideBubble(BUBBLE_AUTO_HIDE);
       }
       // Notify main process that renderer audio playback is done
       window.electronAPI?.tts?.notifyPlaybackDone?.();
@@ -576,6 +578,7 @@ async function playTTSForReply(reply) {
   }
   isProcessing = false;
   setAppState('idle');
+  hideBubble(BUBBLE_AUTO_HIDE);
 }
 
 // Outfit detection is now fully AI-driven via __OUTFIT:描述__ tags in replies.
