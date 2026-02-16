@@ -137,9 +137,11 @@ export function setCurrentOutfit(name: string): void {
 export function loadSavedOutfit(): string {
   try {
     const saved = getSetting('currentOutfit');
+    console.log(`[Wardrobe] loadSavedOutfit: saved="${saved}"`);
     if (saved && saved !== '__default__') {
       // Verify the outfit still exists
       const outfitDir = path.join(OUTFITS_DIR, saved);
+      console.log(`[Wardrobe] Checking outfit dir: ${outfitDir}, exists=${fs.existsSync(outfitDir)}`);
       if (fs.existsSync(outfitDir)) {
         console.log(`[Wardrobe] Loaded saved outfit: ${saved}`);
         return saved;

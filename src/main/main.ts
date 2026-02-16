@@ -138,10 +138,14 @@ const openclawClient = new OpenClawClient({
       if (!sprites) {
         sprites = getOutfit(event.outfit) || undefined;
       }
+      console.log(`[App] Outfit change: outfit="${event.outfit}", sprites=${!!sprites}`);
       if (sprites) {
         // Only update if it's NOT the default outfit (don't overwrite saved custom outfit)
         if (event.outfit !== '__default__') {
+          console.log(`[App] Saving outfit from Gateway: ${event.outfit}`);
           setCurrentOutfit(event.outfit);
+        } else {
+          console.log(`[App] Skipping save for default outfit`);
         }
       }
       mainWindow?.webContents.send('outfit:change', {
