@@ -544,7 +544,7 @@ class LayeredSpriteEngine {
     setTimeout(() => ring.remove(), 800);
   }
 
-  /** Start speaking mouth animation — prepare frames for volume-driven lip sync */
+  /** Start speaking mouth animation — volume-driven with timer fallback */
   _startSpeakAnimation() {
     this._stopSpeakAnimation();
     const frames = ['speaking', 'speaking-1', 'speaking-2'].filter(k => {
@@ -558,8 +558,20 @@ class LayeredSpriteEngine {
     }
     this._speakFrameIndex = 0;
     this._speakFrames = frames;
+    this._speakVolumeActive = false;
     this._setExpression(frames[0]);
-    // No setInterval — frame switching is fully driven by updateVisualizer (volume)
+    // Fallback timer: gentle mouth animation when no volume data is driving frames
+    this._speakFrameTimer = setInterval(() => {
+      if (this.state !== 'speaking' || this._speakVolumeActive) return;
+      // Smooth open-close cycle: 0 → 1 → 2 → 1 → 0 → ...
+      const cycle = [0, 1, 2, 1];
+      this._speakFallbackIdx = ((this._speakFallbackIdx || 0) + 1) % cycle.length;
+      const idx = cycle[this._speakFallbackIdx];
+      if (idx < this._speakFrames.length && idx !== this._speakFrameIndex) {
+        this._speakFrameIndex = idx;
+        this._setExpression(this._speakFrames[idx]);
+      }
+    }, 250);
   }
 
   _stopSpeakAnimation() {
@@ -573,6 +585,10 @@ class LayeredSpriteEngine {
   updateVisualizer(volume) {
     if (this.state === 'speaking') {
       if (volume > 0.05) {
+        this._speakVolumeActive = true;
+        // Reset fallback flag after silence
+        clearTimeout(this._speakVolumeFadeTimer);
+        this._speakVolumeFadeTimer = setTimeout(() => { this._speakVolumeActive = false; }, 500);
         this.springs.speakBounce.target = -volume * 8;
         // Micro-squash on loud syllables
         if (volume > 0.3) {
