@@ -118,6 +118,15 @@ export function getCurrentOutfit(): string {
 }
 
 /**
+ * Set the active outfit locally without persisting to settings.
+ * Used when applying outfit from Gateway events.
+ */
+export function applyOutfit(name: string): void {
+  currentOutfit = name;
+  console.log(`[Wardrobe] Applied outfit locally: ${name}`);
+}
+
+/**
  * Set the active outfit and persist to settings.
  */
 export function setCurrentOutfit(name: string): void {

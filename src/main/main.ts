@@ -10,7 +10,7 @@ import { registerIpcHandlers } from './ipc-handlers';
 import { ImageGenEngine } from './image-gen';
 import { initAutoUpdater } from './auto-updater';
 import { getSettings } from './settings-store';
-import { getOutfit, setCurrentOutfit } from './wardrobe';
+import { getOutfit, setCurrentOutfit, applyOutfit } from './wardrobe';
 
 // Suppress EPIPE errors when running in background
 process.stdout.on('error', (err: NodeJS.ErrnoException) => {
@@ -140,13 +140,9 @@ const openclawClient = new OpenClawClient({
       }
       console.log(`[App] Outfit change: outfit="${event.outfit}", sprites=${!!sprites}`);
       if (sprites) {
-        // Only update if it's NOT the default outfit (don't overwrite saved custom outfit)
-        if (event.outfit !== '__default__') {
-          console.log(`[App] Saving outfit from Gateway: ${event.outfit}`);
-          setCurrentOutfit(event.outfit);
-        } else {
-          console.log(`[App] Skipping save for default outfit`);
-        }
+        // Only apply locally - DON'T auto-save to settings
+        // Settings are only saved when user explicitly selects in wardrobe UI
+        applyOutfit(event.outfit);
       }
       mainWindow?.webContents.send('outfit:change', {
         status: 'ready',
