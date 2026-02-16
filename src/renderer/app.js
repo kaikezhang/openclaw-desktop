@@ -726,8 +726,22 @@ function closeWardrobeAndApply() {
 }
 
 if (closeWardrobeBtn) {
-  closeWardrobeBtn.addEventListener('click', closeWardrobeAndApply);
+  closeWardrobeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    e.preventDefault();
+    closeWardrobeAndApply();
+  });
+  // Also close on mousedown for snappier feel (in case click gets swallowed)
+  closeWardrobeBtn.addEventListener('mousedown', (e) => {
+    e.stopPropagation();
+  });
 }
+// Escape key closes wardrobe
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && wardrobePanel && wardrobePanel.style.display !== 'none') {
+    closeWardrobeAndApply();
+  }
+});
 
 // Track current outfit from outfit:change events
 window.electronAPI?.onOutfitChange?.((data) => {
