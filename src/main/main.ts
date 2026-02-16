@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Tray, Menu, globalShortcut, nativeImage } from 'electron';
+import { app, BrowserWindow, Tray, Menu, globalShortcut, nativeImage, ipcMain } from 'electron';
 import * as path from 'path';
 import * as dotenv from 'dotenv';
 
@@ -41,6 +41,21 @@ function extractMessageText(message: any): string {
 let externalChatAccumulated = '';
 let externalChatSessionStarted = false;
 let externalTTSLocked = false;  // Lock to prevent new events from interrupting TTS playback
+let externalTTSCheckInterval: ReturnType<typeof setInterval> | null = null;
+let externalTTSSafetyTimer: ReturnType<typeof setTimeout> | null = null;
+
+function cleanupExternalTTSTimers(): void {
+  if (externalTTSCheckInterval) { clearInterval(externalTTSCheckInterval); externalTTSCheckInterval = null; }
+  if (externalTTSSafetyTimer) { clearTimeout(externalTTSSafetyTimer); externalTTSSafetyTimer = null; }
+}
+
+function unlockExternalTTS(reason: string): void {
+  if (!externalTTSLocked) return;
+  externalTTSLocked = false;
+  externalChatSessionStarted = false;
+  cleanupExternalTTSTimers();
+  console.log(`[ExternalChat] Unlocked (${reason})`);
+}
 
 const openclawClient = new OpenClawClient({
   port: parseInt(process.env.OPENCLAW_PORT || '18789', 10),
@@ -87,16 +102,26 @@ const openclawClient = new OpenClawClient({
       externalChatAccumulated = '';
       console.log('[ExternalChat] final, TTS flushed — locking until playback done');
 
-      // Lock: ignore all new external chat events until TTS finishes playing
+      // Lock: ignore all new external chat events until BOTH:
+      // 1. TTS engine finishes generating all audio chunks (isBusy === false)
+      // 2. Renderer finishes playing all audio (tts:playbackDone IPC)
       externalTTSLocked = true;
-      const checkDone = setInterval(() => {
+      cleanupExternalTTSTimers();
+
+      // Poll for TTS engine idle, then ping renderer to check playback state
+      externalTTSCheckInterval = setInterval(() => {
         if (!ttsEngine.isBusy) {
-          externalTTSLocked = false;
-          externalChatSessionStarted = false;
-          console.log('[ExternalChat] TTS done, unlocked');
-          clearInterval(checkDone);
+          if (externalTTSCheckInterval) { clearInterval(externalTTSCheckInterval); externalTTSCheckInterval = null; }
+          // All audio chunks sent to renderer. Ask renderer if playback is also done.
+          // If renderer is still playing, it will send tts:playbackDone via onQueueEmpty later.
+          mainWindow?.webContents.send('tts:checkPlayback');
         }
       }, 500);
+
+      // Safety timeout: force unlock after 5 minutes (very long story edge case)
+      externalTTSSafetyTimer = setTimeout(() => {
+        unlockExternalTTS('safety timeout 5min');
+      }, 5 * 60 * 1000);
 
       // Also show in bubble
       if (text && mainWindow) {
@@ -330,6 +355,13 @@ app.whenReady().then(() => {
 
   // Auto-updater (only in packaged builds)
   initAutoUpdater(() => mainWindow);
+
+  // Renderer signals that audio playback queue is empty
+  ipcMain.on('tts:playbackDone', () => {
+    if (externalTTSLocked && !ttsEngine.isBusy) {
+      unlockExternalTTS('renderer playback done');
+    }
+  });
 
   // Outfit change is triggered via IPC from renderer (text trigger __OUTFIT:name__)
 

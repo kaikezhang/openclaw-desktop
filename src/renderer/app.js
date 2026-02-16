@@ -55,6 +55,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         isProcessing = false;
         setAppState('idle');
       }
+      // Notify main process that renderer audio playback is done
+      window.electronAPI?.tts?.notifyPlaybackDone?.();
     };
   }
 
@@ -226,6 +228,13 @@ function initTTSListeners() {
     streamingTTSStarted = true;
     if (!window._outfitTTSHold && appState === 'thinking') {
       setAppState('speaking');
+    }
+  });
+
+  // Main process pings renderer to check if audio playback is done
+  window.electronAPI.tts.onCheckPlayback?.(() => {
+    if (!audioPlayerQueue?.playing && (!audioPlayerQueue?.queue || audioPlayerQueue.queue.length === 0)) {
+      window.electronAPI?.tts?.notifyPlaybackDone?.();
     }
   });
 }
