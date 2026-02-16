@@ -24,9 +24,64 @@ process.stderr.on('error', (err: NodeJS.ErrnoException) => {
 
 // ===== Services =====
 
+/** Extract text from a gateway chat message object. */
+function extractMessageText(message: any): string {
+  if (!message) return '';
+  const content = message.content;
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .filter((block: any) => block?.type === 'text' && typeof block.text === 'string')
+      .map((block: any) => block.text)
+      .join('\n');
+  }
+  return '';
+}
+
+let externalChatAccumulated = '';
+
 const openclawClient = new OpenClawClient({
   port: parseInt(process.env.OPENCLAW_PORT || '18789', 10),
   token: process.env.OPENCLAW_TOKEN || '',
+  onEvent: (msg) => {
+    // Handle external chat events (e.g. from sessions_send) → feed to TTS
+    if (msg.event !== 'chat') return;
+    if ((globalThis as any).__openclawLocalChatActive) return; // Local chat already handles TTS via its own stream
+
+    const payload = msg.payload || {};
+    const state = payload.state;
+
+    if (state === 'delta') {
+      const text = extractMessageText(payload.message);
+      if (text) {
+        ttsEngine.splitter.addText(
+          text.length > (externalChatAccumulated?.length || 0)
+            ? text.slice(externalChatAccumulated?.length || 0)
+            : ''
+        );
+        externalChatAccumulated = text;
+      }
+    } else if (state === 'final') {
+      const text = extractMessageText(payload.message);
+      if (text && text.length > (externalChatAccumulated?.length || 0)) {
+        ttsEngine.splitter.addText(text.slice(externalChatAccumulated?.length || 0));
+      }
+      ttsEngine.splitter.finish();
+      externalChatAccumulated = '';
+
+      // Also show in bubble
+      if (text && mainWindow) {
+        mainWindow.webContents.send('external:chat', { text });
+      }
+    } else if (state === 'started') {
+      // New external run starting — reset TTS
+      ttsEngine.startSession();
+      externalChatAccumulated = '';
+      if (mainWindow) {
+        mainWindow.webContents.send('external:chatStarted');
+      }
+    }
+  },
   onOutfitChange: (event) => {
     console.log(`[App] Outfit change event: ${event.status} (${event.outfit})`);
 

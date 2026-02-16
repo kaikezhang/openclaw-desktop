@@ -26,6 +26,9 @@ export function registerIpcHandlers(deps: {
   ipcMain.handle('openclaw:chat', async (_event, message: string) => {
     console.log('[IPC] openclaw:chat:', message);
 
+    // Signal that local chat is active (suppress external TTS handling)
+    (globalThis as any).__openclawLocalChatActive = true;
+
     // Reset TTS for new streaming session
     ttsEngine.startSession();
 
@@ -49,6 +52,8 @@ export function registerIpcHandlers(deps: {
         success: false,
         message: 'OpenClaw gateway not reachable. Make sure the service is running.',
       };
+    } finally {
+      (globalThis as any).__openclawLocalChatActive = false;
     }
   });
 

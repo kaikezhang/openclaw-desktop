@@ -76,6 +76,12 @@ contextBridge.exposeInMainWorld('electronAPI', {
   listOutfits: () => ipcRenderer.invoke('outfit:list'),
   getOutfitThumbnail: (name: string) => ipcRenderer.invoke('outfit:thumbnail', name),
 
+  // ===== External Chat (from sessions_send) =====
+  onExternalChat: (cb: (data: { text: string }) => void) =>
+    ipcRenderer.on('external:chat', (_e, data) => cb(data)),
+  onExternalChatStarted: (cb: () => void) =>
+    ipcRenderer.on('external:chatStarted', () => cb()),
+
   // ===== Global Hotkeys =====
   onToggleMini: (cb: () => void) =>
     ipcRenderer.on('hotkey:toggleMini', () => cb()),

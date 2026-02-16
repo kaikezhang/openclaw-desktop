@@ -131,6 +131,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   initMiniMode();
+  initExternalChatListeners();
 
   console.log('[App] Initialized');
 });
@@ -225,6 +226,46 @@ function initTTSListeners() {
     streamingTTSStarted = true;
     if (!window._outfitTTSHold && appState === 'thinking') {
       setAppState('speaking');
+    }
+  });
+}
+
+// ===== External Chat (from sessions_send / other sessions) =====
+function initExternalChatListeners() {
+  // When an external session triggers a run on our session
+  window.electronAPI?.onExternalChatStarted?.(() => {
+    console.log('[App] External chat started');
+    if (audioPlayerQueue) audioPlayerQueue.reset();
+    streamingTTSStarted = false;
+    lastBubbleText = '';
+    setAppState('thinking');
+    isProcessing = true;
+  });
+
+  // When the external chat run completes with final text
+  window.electronAPI?.onExternalChat?.((data) => {
+    console.log('[App] External chat final:', data.text?.substring(0, 60));
+    const reply = cleanMarkdown(data.text || '');
+    lastAIResponse = reply;
+
+    // Bounce character
+    if (layeredSprite) layeredSprite.bounce();
+
+    // Add to history
+    if (typeof addToHistory === 'function') addToHistory('assistant', reply);
+
+    // Show bubble — TTS is already being handled by main process via onEvent→splitter
+    showBubble(escapeHtml(reply));
+
+    // If TTS didn't start (very short text), show bubble and go idle after delay
+    if (!streamingTTSStarted && !audioPlayerQueue?.playing && audioPlayerQueue?.queue?.length === 0) {
+      // TTS chunks may still arrive, wait a moment
+      setTimeout(() => {
+        if (!audioPlayerQueue?.playing && audioPlayerQueue?.queue?.length === 0) {
+          isProcessing = false;
+          setAppState('idle');
+        }
+      }, 2000);
     }
   });
 }
