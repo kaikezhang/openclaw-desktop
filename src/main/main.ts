@@ -52,12 +52,17 @@ const openclawClient = new OpenClawClient({
     const payload = msg.payload || {};
     const state = payload.state;
 
-    // Auto-start TTS session on first delta if not already started
+    // Auto-start TTS session on first delta — but only if TTS is idle
+    // If TTS is busy (playing previous text), just append without resetting
     if ((state === 'delta' || state === 'started') && !externalChatSessionStarted) {
       externalChatSessionStarted = true;
       externalChatAccumulated = '';
-      ttsEngine.startSession();
-      console.log('[ExternalChat] TTS session started');
+      if (!ttsEngine.isBusy) {
+        ttsEngine.startSession();
+        console.log('[ExternalChat] TTS session started (idle)');
+      } else {
+        console.log('[ExternalChat] TTS busy, appending without reset');
+      }
       if (mainWindow) {
         mainWindow.webContents.send('external:chatStarted');
       }

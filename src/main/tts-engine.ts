@@ -86,6 +86,11 @@ export class TTSEngine {
     this.window = win;
   }
 
+  /** True if TTS is currently processing or has queued items. */
+  get isBusy(): boolean {
+    return this.processing || this.queue.length > 0;
+  }
+
   get voiceId(): string {
     return this.config.voiceId;
   }
