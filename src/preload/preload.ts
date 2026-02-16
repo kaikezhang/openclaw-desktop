@@ -27,9 +27,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
     onFirstSentence: (cb: (data: { text: string }) => void) =>
       ipcRenderer.on('tts:firstSentence', (_e, data) => cb(data)),
 
+    notifyPlaybackDone: () => ipcRenderer.send('tts:playbackDone'),
+    onCheckPlayback: (cb: () => void) =>
+      ipcRenderer.on('tts:checkPlayback', () => cb()),
+
     removeAllListeners: () => {
       ipcRenderer.removeAllListeners('tts:audioChunk');
       ipcRenderer.removeAllListeners('tts:firstSentence');
+      ipcRenderer.removeAllListeners('tts:checkPlayback');
     },
   },
 

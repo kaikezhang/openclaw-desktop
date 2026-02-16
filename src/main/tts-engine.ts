@@ -91,6 +91,11 @@ export class TTSEngine {
     return this.processing || this.queue.length > 0;
   }
 
+  /** Number of sentences enqueued in the current session. */
+  get currentSentenceCount(): number {
+    return this.sentenceCounter;
+  }
+
   get voiceId(): string {
     return this.config.voiceId;
   }
