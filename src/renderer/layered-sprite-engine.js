@@ -701,14 +701,19 @@ class LayeredSpriteEngine {
       rotate(${rotate.toFixed(2)}deg)
     `;
 
-    // Speaking mouth animation — subtle scaleY pulsation on speaking sprite
-    if (this._sprites.speaking) {
-      if (this.state === 'speaking') {
-        const mouthPulse = 1.0 + Math.abs(s.speakBounce.pos) * 0.018;
-        this._sprites.speaking.style.transformOrigin = 'center 75%';
-        this._sprites.speaking.style.transform = `scaleY(${mouthPulse.toFixed(4)})`;
-      } else {
-        this._sprites.speaking.style.transform = '';
+    // Speaking mouth animation — subtle scaleY pulsation on ALL speaking sprites
+    const speakingKeys = ['speaking', 'speaking-1', 'speaking-2'];
+    if (this.state === 'speaking') {
+      const mouthPulse = 1.0 + Math.abs(s.speakBounce.pos) * 0.018;
+      for (const key of speakingKeys) {
+        if (this._sprites[key] && this._sprites[key].style.display !== 'none') {
+          this._sprites[key].style.transformOrigin = 'center 75%';
+          this._sprites[key].style.transform = `scaleY(${mouthPulse.toFixed(4)})`;
+        }
+      }
+    } else {
+      for (const key of speakingKeys) {
+        if (this._sprites[key]) this._sprites[key].style.transform = '';
       }
     }
 
