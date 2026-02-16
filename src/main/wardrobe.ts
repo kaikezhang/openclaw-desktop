@@ -125,6 +125,7 @@ export function setCurrentOutfit(name: string): void {
   // Persist to settings so it survives restart
   try {
     setSetting('currentOutfit', name);
+    console.log(`[Wardrobe] setCurrentOutfit: saved "${name}" to settings`);
   } catch (e) {
     console.warn('[Wardrobe] Failed to save outfit to settings:', e);
   }
