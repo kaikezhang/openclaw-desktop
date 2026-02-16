@@ -571,6 +571,14 @@ class LayeredSpriteEngine {
         this._speakFrameIndex = idx;
         this._setExpression(this._speakFrames[idx]);
       }
+      // Drive speakBounce spring for scaleY pulse (simulate volume)
+      const fakeBounce = [0, -3, -6, -3];
+      this.springs.speakBounce.target = fakeBounce[this._speakFallbackIdx] || 0;
+      // Also drive subtle squash
+      const fakeSquash = [0, 0.01, 0.025, 0.01];
+      const sq = fakeSquash[this._speakFallbackIdx] || 0;
+      this.springs.squashX.pos = 1 + sq;
+      this.springs.squashY.pos = 1 - sq * 0.7;
     }, 250);
   }
 
