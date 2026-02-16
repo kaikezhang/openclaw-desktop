@@ -1,147 +1,146 @@
 # OpenClaw Desktop
 
-AI voice assistant with animated avatar, built on Electron + OpenClaw.
+AI desktop companion with animated avatar, powered by [OpenClaw](https://github.com/openclaw/openclaw).
 
 ![Electron](https://img.shields.io/badge/Electron-28-47848F?logo=electron) ![TypeScript](https://img.shields.io/badge/TypeScript-5.3-3178C6?logo=typescript) ![License](https://img.shields.io/badge/License-MIT-green)
 
-## Features
+## What is this?
 
-- **Three character modes** — Glass Orb 🫧 / Sprite portrait 🎨 / Live2D 🎭
-- **Voice conversation** — Deepgram Nova-2 STT with VAD and keep-alive
-- **Streaming TTS** — MiniMax Speech-02-HD with sentence splitting and queued playback
-- **Glass Orb character** — 67px fluid glass ball with 15+ eye expressions, 7 mood colors, mouse tracking, idle micro-expressions, and particle effects
-- **Wanwan sprite** — AI-generated character with breathing, blinking, and expression switching
-- **Live2D avatar** — PixiJS + pixi-live2d-display (Cubism 2/3/4), Hiyori bundled as default
-- **OpenClaw gateway** — WebSocket client with ed25519 device identity auth, tick keepalive, auto-reconnect
-- **Connection status** — Offline/online detection with revival animation
-- **AI selfie generation** — fal.ai Flux integration for character image generation
-- **State machine** — `idle → listening → thinking → speaking → followup`
-- **Mini-orb mode** — Collapse to floating orb, still accepts voice input
-- **Theme system** — Dark, Light, Purple Night
-- **System tray** — Show/hide, mini mode, settings, quit
-- **Global hotkeys** — `Ctrl+Shift+O` toggle recording, `Ctrl+Shift+M` toggle mini
-- **Settings panel** — Dark-themed UI for all configuration (character mode, theme, API keys)
-- **Start with system** — Auto-launch on login
-- **Cross-platform packaging** — electron-builder for macOS, Windows, Linux
+A desktop pet / AI assistant that sits on your screen. It connects to an [OpenClaw](https://github.com/openclaw/openclaw) gateway running on your machine and gives your AI agent a face, voice, and personality.
 
-## Character Modes
+**Features:**
+- 🎨 **Animated sprite character** — breathing, blinking, expressions, lip sync
+- 🗣️ **Text-to-Speech** — Edge TTS (free, default) or MiniMax Speech-02-HD
+- 💬 **Chat** — text input with streaming responses
+- 👗 **Wardrobe system** — AI-generated outfit changes via `__OUTFIT:描述__` tags
+- 🖼️ **AI selfie generation** — fal.ai Flux integration
+- 🔌 **WebSocket connection** — Ed25519 device identity auth, auto-reconnect
+- 📦 **Mini mode** — collapse to floating orb
+- 🎨 **Themes** — Dark, Light, Purple Night
+- ⌨️ **Global hotkeys** — `Ctrl+Shift+M` toggle mini mode
+- 🖥️ **Cross-platform** — macOS, Windows, Linux
 
-| Mode | Description |
-|---|---|
-| 🫧 **Glass Orb** | Fluid glass ball with expressive CSS eyes. 7 mood colors, natural blinking, mouse tracking, idle micro-expressions, click particles. Zero sprites — pure CSS/JS. |
-| 🎨 **Sprite** | Wanwan portrait with CSS breathing animation, random blinking, head sway. Supports portrait + pixel GIF sub-modes. |
-| 🎭 **Live2D** | Hiyori model (Cubism 4). Full body animation with motion mapping. |
+## Prerequisites
 
-Switch modes with the gamepad button in the UI or via Settings.
+### 1. Install OpenClaw (Backend)
 
-## Quick Setup (npx)
+This app is a **frontend** for OpenClaw. You need an OpenClaw gateway running locally.
 
 ```bash
-npx openclaw-desktop
+# Install OpenClaw
+npm install -g openclaw
+
+# Set up your agent (follow the interactive setup)
+openclaw init
+
+# Start the gateway
+openclaw gateway start
 ```
 
-Interactive wizard that checks OpenClaw, configures gateway + API keys, builds, and launches.
+The gateway runs on `localhost:18789` by default. See [OpenClaw docs](https://docs.openclaw.ai) for full setup guide.
+
+### 2. Pair this app as a device
+
+OpenClaw Desktop connects as a **device** using Ed25519 key pairs (auto-generated on first launch). After launching the app, approve the device pairing in your OpenClaw gateway.
+
+## Install & Run
+
+```bash
+# Clone
+git clone https://github.com/kaikezhang/openclaw-desktop.git
+cd openclaw-desktop
+
+# Install dependencies
+npm install
+
+# Configure (optional — see Configuration below)
+cp .env.example .env
+
+# Build & run
+npm run build
+npm start
+```
+
+### Development mode
+
+```bash
+npm run dev
+# Or with DevTools:
+npm start -- --dev
+```
+
+## Configuration
+
+Copy `.env.example` to `.env` and edit as needed:
+
+```env
+# OpenClaw Gateway (required)
+OPENCLAW_PORT=18789          # Gateway port (default: 18789)
+OPENCLAW_TOKEN=              # Optional: gateway auth token
+
+# TTS - MiniMax (optional, Edge TTS is used by default for free)
+MINIMAX_API_KEY=             # Get from https://www.minimaxi.com/
+MINIMAX_GROUP_ID=            # Your MiniMax group ID
+MINIMAX_MODEL=speech-02-hd
+MINIMAX_VOICE_ID=Chinese (Mandarin)_Warm_Girl
+
+# Image Generation (optional, for AI selfies/outfits)
+FAL_KEY=                     # Get from https://fal.ai/dashboard/keys
+```
+
+**TTS note:** Edge TTS (free, no API key) is the default. MiniMax is used as fallback if configured. You don't need any API keys for basic voice.
 
 ## Architecture
 
 ```
-src/
-├── main/                      # Electron main process (TypeScript)
-│   ├── main.ts                # App entry, window, tray, hotkeys
-│   ├── ipc-handlers.ts        # All IPC handlers (chat, STT, TTS, status, settings)
-│   ├── openclaw-client.ts     # OpenClaw WebSocket gateway client
-│   ├── tts-engine.ts          # MiniMax TTS with sentence queue
-│   ├── stt-engine.ts          # Deepgram STT engine
-│   ├── settings-store.ts      # JSON-based settings persistence
-│   ├── device-identity.ts     # ed25519 device key + signing
-│   └── image-gen.ts           # fal.ai selfie generation
-├── renderer/                  # Frontend (vanilla HTML/CSS/JS)
-│   ├── index.html             # Main window
-│   ├── settings.html          # Settings panel
-│   ├── styles.css
-│   ├── app.js                 # UI state machine, character mode manager
-│   ├── glass-orb.js           # Glass orb character (fluid ball + eyes)
-│   ├── character-animator.js  # Sprite-based character animation
-│   ├── live2d-manager.js      # Live2D model loading & animation
-│   ├── audio-player.js        # Audio playback queue
-│   ├── audio-processor.js     # AudioWorklet for mic capture
-│   ├── orb.js                 # Aura/particle canvas effects
-│   └── vendor/                # Bundled libs (PixiJS, Cubism4, Iconify)
-├── preload/
-│   └── preload.ts             # contextBridge API
-└── assets/
-    ├── character/wanwan/      # Wanwan sprite images (idle, speaking, blink)
-    └── models/Hiyori/         # Live2D Hiyori model
+┌─────────────────────────┐     WebSocket      ┌──────────────────┐
+│   OpenClaw Desktop      │◄──────────────────►│  OpenClaw Gateway │
+│   (Electron)            │    localhost:18789   │  (Node.js)       │
+│                         │                      │                  │
+│  ┌─────────────────┐    │                      │  ┌────────────┐  │
+│  │ Sprite Engine    │    │   chat.send/events   │  │ AI Agent   │  │
+│  │ (PNGTuber-style) │    │◄────────────────────►│  │ (Claude,   │  │
+│  └─────────────────┘    │                      │  │  GPT, etc) │  │
+│  ┌─────────────────┐    │                      │  └────────────┘  │
+│  │ TTS Engine       │    │                      │  ┌────────────┐  │
+│  │ (Edge/MiniMax)   │    │                      │  │ Channels   │  │
+│  └─────────────────┘    │                      │  │ (Discord,  │  │
+│  ┌─────────────────┐    │                      │  │  Telegram…)│  │
+│  │ Image Gen        │    │                      │  └────────────┘  │
+│  │ (fal.ai)         │    │                      └──────────────────┘
+│  └─────────────────┘    │
+└─────────────────────────┘
 ```
 
-## Quick Start
+The desktop app is one of many possible frontends for OpenClaw. Your AI agent can simultaneously be connected to Discord, Telegram, and this desktop app.
+
+## Custom Character
+
+The default character sprites are in `assets/character/wanwan/layers/final/`. To use your own:
+
+1. Create PNG sprites: `char-idle.png`, `char-blink.png`, `char-speaking.png`
+2. Place them in `assets/character/yourchar/layers/final/`
+3. Update the path in `src/renderer/app.js` → `loadLayers()`
+
+## Outfit System
+
+The AI can change outfits by including `__OUTFIT:description__` in its response. The app detects this tag, generates new sprites via fal.ai, and hot-swaps them. Outfits are saved to the wardrobe for reuse.
+
+Requires `FAL_KEY` in `.env`.
+
+## Building for Distribution
 
 ```bash
-# Install dependencies
-npm install
+# macOS
+npm run dist:mac
 
-# Copy and fill in your API keys
-cp .env.example .env
+# Windows
+npm run dist:win
 
-# Build TypeScript and start the app
-npm start
+# Linux
+npm run dist:linux
 ```
 
-## Development
+## License
 
-```bash
-# Watch mode (recompiles on change)
-npm run dev:build
-
-# In another terminal, start Electron with DevTools
-npm run dev:electron
-
-# Lint & format
-npm run lint
-npm run format
-```
-
-## Packaging
-
-```bash
-# Build for current platform
-npm run dist
-
-# Platform-specific
-npm run dist:mac     # → release/*.dmg, *.zip
-npm run dist:win     # → release/*.exe
-npm run dist:linux   # → release/*.AppImage, *.deb
-```
-
-## Environment Variables
-
-| Variable | Description |
-|---|---|
-| `OPENCLAW_PORT` | Gateway port (default: `18789`) |
-| `OPENCLAW_TOKEN` | Auth token for the gateway |
-| `FAL_KEY` | fal.ai API key (selfie generation) |
-| `DEEPGRAM_API_KEY` | Deepgram API key (STT) |
-| `MINIMAX_API_KEY` | MiniMax API key (TTS) |
-| `MINIMAX_GROUP_ID` | MiniMax Group ID |
-| `MINIMAX_MODEL` | TTS model (default: `speech-02-hd`) |
-| `MINIMAX_VOICE_ID` | Voice ID (default: `Lovely_Girl`) |
-
-Settings can also be configured via the in-app settings panel (persisted in userData).
-
-## Device Identity
-
-The app auto-detects your OpenClaw device identity from `~/.openclaw/identity/device.json`. No manual configuration needed — if OpenClaw is installed and configured, authentication is automatic.
-
-If no system identity is found, the app generates its own ed25519 keypair (stored in Electron userData).
-
-## Global Shortcuts
-
-| Shortcut | Action |
-|---|---|
-| `Ctrl+Shift+O` / `Cmd+Shift+O` | Toggle recording |
-| `Ctrl+Shift+M` / `Cmd+Shift+M` | Toggle mini mode |
-
-## Licenses
-
-- App: MIT
-- Hiyori model: [Live2D Free Material License](https://www.live2d.com/eula/live2d-sample-model-terms_en.html)
+MIT
