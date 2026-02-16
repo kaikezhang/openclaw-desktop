@@ -614,8 +614,9 @@ class LayeredSpriteEngine {
     }
     if (expr === this._currentExpression) return;
     // Show the target expression sprite, hide all others
-    // For blink: show blink sprite (actual closed-eyes image)
+    // Skip sprites that failed to load (display: none) to prevent blank flashes
     Object.entries(this._sprites).forEach(([key, img]) => {
+      if (img.style.display === 'none') return;
       img.style.transition = expr === 'blink' ? 'opacity 0.08s ease' : 'opacity 0.3s ease';
       img.style.opacity = key === expr ? '1' : '0';
     });
